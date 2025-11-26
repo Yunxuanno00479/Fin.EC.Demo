@@ -723,6 +723,7 @@ def build_transcript_children(df, active_section_id, scroll_state):
 # ============================================================
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 
 app.layout = dbc.Container(
     [
