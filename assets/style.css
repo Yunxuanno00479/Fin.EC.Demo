@@ -1,5 +1,5 @@
 /* =========================================================
-   0. Global 基本樣式
+   0. Global
    ========================================================= */
 
 html, body {
@@ -15,7 +15,7 @@ html, body {
     box-sizing: border-box;
 }
 
-/* 卡片通用外觀 */
+/* Card common appearance */
 .dash-card {
     background-color: #ffffff;
     border-radius: 10px;
@@ -28,7 +28,7 @@ html, body {
     margin-bottom: 8px;
 }
 
-/* 區塊標題：左側色條 */
+/* Block title: left color bar */
 .block-title {
     font-size: 18px;
     font-weight: 700;
@@ -48,7 +48,7 @@ html, body {
     background: linear-gradient(180deg, #203864, #6366f1);
 }
 
-/* 頂端大標題 */
+/* Top header */
 .top-header {
     background: linear-gradient(90deg, #111827, #1f2937);
     color: #ffffff;
@@ -63,7 +63,7 @@ html, body {
 }
 
 /* =========================================================
-   1. Transcript 區塊
+   1. Transcript section
    ========================================================= */
 
 .transcript-card {
@@ -72,7 +72,7 @@ html, body {
     height: 100%;
 }
 
-/* 滾動容器 */
+/* Scroll container */
 .transcript-container {
     flex: 1;
     min-height: 0;
@@ -82,7 +82,7 @@ html, body {
     background: transparent;
 }
 
-/* 美化 scrollbar */
+/* Beautify scrollbar */
 .transcript-container::-webkit-scrollbar {
     width: 6px;
 }
@@ -94,7 +94,7 @@ html, body {
     border-radius: 4px;
 }
 
-/* 單句小卡片 */
+/* Single sentence card */
 .transcript-line {
     padding: 10px 12px;
     border-radius: 10px;
@@ -112,13 +112,13 @@ html, body {
     transform: translateY(-1px);
 }
 
-/* 上方句子 */
+/* Above sentence */
 .transcript-above {
     background-color: #F4F7FC;
     border: 1px solid #AFC4E5;
 }
 
-/* Active 句子 */
+/* Active sentence */
 .transcript-active {
     background-color: #E3EBF9;
     border: 2px solid #203864;
@@ -127,13 +127,13 @@ html, body {
     z-index: 3;
 }
 
-/* 下方句子 */
+/* Below sentence */
 .transcript-below {
     background-color: #FBFBFB;
     border: 1px solid #A6A6A6;
 }
 
-/* Meta 區 */
+/* Meta section */
 .transcript-meta {
     margin-bottom: 4px;
     font-size: 13px;
@@ -161,7 +161,7 @@ html, body {
 .speaker-title::before { content: " ("; }
 .speaker-title::after  { content: ")"; }
 
-/* Transcript 主文字 */
+/* Transcript main text */
 .transcript-text {
     font-size: 14px;
     line-height: 1.45;
@@ -169,7 +169,7 @@ html, body {
 }
 
 /* =========================================================
-   2. Q&A 氣泡與 Q/A 標籤
+   2. Q&A bubbles and Q/A labels
    ========================================================= */
 
 .qa-text-block {
@@ -186,7 +186,7 @@ html, body {
     margin-bottom: 6px;
 }
 
-/* 圓形 Q/A 貼紙 */
+/* Q/A labels */
 .qa-label {
     display: flex;
     align-items: center;
@@ -201,17 +201,17 @@ html, body {
     color: #ffffff;
 }
 
-/* Q = 琥珀黃 */
+/* Q = Amber */
 .qa-label-q {
     background-color: #FFB703;
 }
 
-/* A = 青綠 */
+/* A = Teal */
 .qa-label-a {
     background-color: #2A9D8F;
 }
 
-/* 氣泡本體 */
+/* Bubble body */
 .qa-bubble {
     flex-grow: 1;
     padding: 8px 12px;
@@ -264,7 +264,7 @@ html, body {
    4. Transcript Tabs & More / Less
    ========================================================= */
 
-/* 上方 Presentation / Q&A tabs (pill) */
+/* Top Presentation / Q&A tabs (pill) */
 .transcript-tab-row {
     display: flex;
     gap: 6px;
@@ -295,7 +295,7 @@ html, body {
     color: #ffffff !important;
 }
 
-/* + More / - Less 小連結 */
+/* + More / - Less small links */
 .more-less-row {
     display: flex;
     justify-content: center;
@@ -325,10 +325,10 @@ html, body {
 }
 
 /* =========================================================
-   5. Charts (中間兩張圖)
+   5. Charts (middle two charts)
    ========================================================= */
 
-/* card 變成垂直 flex：上面標題 / tabs，下面圖表 */
+/* card becomes vertical flex: top title / tabs, bottom chart */
 .chart-card {
     position: relative;
     display: flex;
@@ -336,7 +336,6 @@ html, body {
     overflow: hidden;
 }
 
-/* 圖表在 card 裡吃滿剩餘高度 */
 .chart-card .tone-graph,
 .chart-card .indicator-graph {
     flex: 1 1 auto;
@@ -344,7 +343,7 @@ html, body {
     height: 100% !important;
 }
 
-/* Tone 上方時間標籤 */
+/* Tone top time label */
 .tone-time-label {
     position: absolute;
     right: 18px;
@@ -404,7 +403,7 @@ html, body {
     background-color: #ffffff;
 }
 
-/* 共用樣式：灰邊白底、文字深灰 */
+/* Shared styles: gray border white background, dark gray text */
 .custom-btn-group .btn {
     border-radius: 0;
     font-size: 40px;
@@ -412,12 +411,11 @@ html, body {
     padding: 6px 18px;
     border: 1px solid #cbd5e1;
     border-left-width: 0;
-    background-color: #ffffff;   /* 注意：這裡沒有 !important，讓 inline style 可以蓋過 */
-    color: #374151;              /* 同理，不加 !important */
+    background-color: #ffffff;
+    color: #374151;
     box-shadow: none;
 }
 
-/* 左右兩端做圓角，像一整條 segmented control */
 .custom-btn-group .btn:first-child {
     border-radius: 8px 0 0 8px;
     border-left-width: 1px;
@@ -426,22 +424,20 @@ html, body {
     border-radius: 0 8px 8px 0;
 }
 
-/* hover 一點點灰底 */
+/* hover */
 .custom-btn-group .btn:hover {
     background-color: #f3f4f6;
 }
 
-/* Active 狀態：讓 Python 的 #009688 當底色，我們只補邊框顏色 */
 .custom-btn-group .btn[style*="background-color: #009688"] {
     border-color: #009688;
-    color: #ffffff;  /* Python 也會設成白色，這裡只是補強，沒有 !important */
+    color: #ffffff;
 }
 
 /* =========================================================
    8. Dropdown（Company）
    ========================================================= */
 
-/* 整個 Company 卡片高度，對齊 Year 卡片 */
 .dropdown-card {
     height: 50px;
     padding-top: 6px;
@@ -449,12 +445,12 @@ html, body {
     flex: 0 0 auto;
 }
 
-/* 外層字體略縮小一點 */
+/* Outer font size slightly smaller */
 .clean-dropdown {
     font-size: 14px;
 }
 
-/* 控制列：無邊框、透明背景，高度適中 */
+/* Control row: no border, transparent background, moderate height */
 .dropdown-card .clean-dropdown .Select-control {
     background: transparent !important;
     border: none !important;
@@ -465,7 +461,7 @@ html, body {
     font-size: 14px !important;
 }
 
-/* 顯示的公司名稱 / placeholder */
+/* Displayed company name / placeholder */
 .dropdown-card .clean-dropdown .Select-placeholder,
 .dropdown-card .clean-dropdown .Select-value-label {
     font-size: 14px !important;
@@ -474,7 +470,7 @@ html, body {
     font-weight: 500;
 }
 
-/* 展開清單：限制高度，避免太長 */
+/* Dropdown menu */
 .dropdown-card .clean-dropdown .Select-menu-outer {
     max-height: 180px !important;
     overflow-y: auto !important;
@@ -487,7 +483,7 @@ html, body {
 }
 
 /* =========================================================
-   9. Comment 區塊
+   9. Comment section
    ========================================================= */
 
 .comment-content {
@@ -503,7 +499,7 @@ html, body {
     border: 1px dashed rgba(148, 163, 184, 0.9);
 }
 
-/* 標記關鍵字 */
+/* Highlight keywords */
 .comment-content em {
     font-style: normal;
     background: linear-gradient(120deg, #fffbeb, #fef3c7);
@@ -512,43 +508,27 @@ html, body {
 }
 
 /* =========================================================
-   Override：Quarter 與 Company 尺寸微調
+   Override: Quarter and Company size
    ========================================================= */
 
-/* 讓 Q1–Q4 整條高度 ≈ Year 卡片（50px），並撐滿整個欄位 */
 .custom-btn-group {
     display: inline-flex;
-    width: 100%;          /* 撐滿整個 col，右邊界會和 Company 對齊 */
-    height: 50px;         /* 和 Year 卡片一樣高 */
+    width: 100%;
+    height: 50px;
 }
 
-/* 每顆按鈕平均分配寬度、撐滿高度 */
-.custom-btn-group .btn {
-    flex: 1 1 0;
-    height: 100%;
-    padding-top: 0;
-    padding-bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;      /* 字體維持適中 */
-}
-
-/* Company 卡片稍微拉高一點，讓 dropdown 看起來更大 */
 .dropdown-card {
     height: 56px !important;
     padding-top: 8px !important;
     padding-bottom: 8px !important;
 }
 
-/* Dropdown 控制列再高一點、字再大一點 */
 .dropdown-card .clean-dropdown .Select-control {
     min-height: 36px !important;
     height: 36px !important;
     font-size: 15px !important;
 }
 
-/* 顯示的公司名稱 / placeholder 字體一起放大 */
 .dropdown-card .clean-dropdown .Select-placeholder,
 .dropdown-card .clean-dropdown .Select-value-label {
     font-size: 15px !important;
@@ -556,27 +536,27 @@ html, body {
 }
 
 /* =========================================================
-   Comment 區塊 — 強制啟用內部滾動
+   Comment section — Force internal scrolling
    ========================================================= */
 
 .comment-content {
     flex: 1 1 auto;
     min-height: 0;
-    max-height: calc(100vh - 220px);  /* 視窗高度 - 上面那些 header/card 的空間 */
-    overflow-y: auto;                 /* ⭐ 超出就出現 scroll bar */
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
 }
 
 /* =========================================================
-   Comment 區塊 — Markdown 美化
+   Comment section
    ========================================================= */
 
-/* 整體文字 */
+/* Overall text */
 .comment-content {
     font-size: 13.5px;
     line-height: 1.6;
 }
 
-/* 標題層級 */
+/* Heading levels */
 .comment-content h1,
 .comment-content h2,
 .comment-content h3 {
@@ -586,33 +566,18 @@ html, body {
     color: #111827;
 }
 
-.comment-content h1 {
-    font-size: 17px;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 3px;
-}
-.comment-content h2 {
-    font-size: 15px;
-}
-.comment-content h3 {
-    font-size: 14px;
-}
-
-/* 段落 */
+/* Paragraphs */
 .comment-content p {
     margin: 3px 0 6px 0;
 }
 
-/* 無序列表 */
+/* Unordered lists */
 .comment-content ul {
     margin: 4px 0 6px 1.1em;
     padding-left: 0.8em;
 }
-.comment-content li {
-    margin: 2px 0;
-}
 
-/* 引用區塊（例如 > 文字） */
+/* Blockquotes */
 .comment-content blockquote {
     margin: 6px 0;
     padding: 6px 10px;
@@ -641,23 +606,22 @@ html, body {
     overflow-x: auto;
 }
 
-/* 粗體 */
+/* Bold */
 .comment-content strong {
     font-weight: 700;
     color: #111827;
 }
 
-/* ===== Quarter Buttons 字體與高度微調 ===== */
+/* ===== Quarter Buttons ===== */
 
 .custom-btn-group .btn {
-    font-size: 16px;     /* 比原本再大一點 */
-    font-weight: 700;    /* 字看起來更有份量 */
+    font-size: 16px;
+    font-weight: 700;
     padding-top: 8px;
-    padding-bottom: 8px; /* 讓整顆按鈕更「飽滿」 */
+    padding-bottom: 8px;
 }
 
-
-/* ===== Comment 區塊：高度與捲動修正 ===== */
+/* ===== Comment section: height and scroll adjustments ===== */
 
 .comment-content {
     flex: 1 1 auto;
@@ -667,20 +631,16 @@ html, body {
     overflow-y: auto;
 }
 
-/* ===== FINAL: Comment 區塊 — 高度 & 捲動 ===== */
-
-/* 這一段是最後的版本，其他 .comment-content 當作沒看到即可 */
 .comment-content {
     margin-top: 6px;
     font-size: 13.5px;
     line-height: 1.6;
     white-space: pre-wrap;
 
-    /* 關鍵：在右側卡片裡面占滿剩餘高度，但不往外撐爆 */
     flex: 1 1 auto;
     min-height: 0;
-    max-height: 65vh;      /* 你可以改成 60/70 視覺上好看為準 */
-    overflow-y: auto;      /* ⭐ 內容太長就出現內部 scroll */
+    max-height: 65vh;
+    overflow-y: auto;
 
     padding: 8px 10px;
     border-radius: 8px;
@@ -688,9 +648,6 @@ html, body {
     border: 1px dashed rgba(148, 163, 184, 0.9);
 }
 
-/* Markdown 美化維持：
-   下面這些如果你前面已經有，就不用重複貼了；如果不確定，
-   放在這段後面一起貼也沒關係。*/
 .comment-content h1,
 .comment-content h2,
 .comment-content h3 {
@@ -731,25 +688,19 @@ html, body {
     border-radius: 4px;
 }
 
-
-/* ===== FINAL: Quarter Buttons 字體大小 ===== */
 .custom-btn-group .btn {
     font-size: 18px;
     font-weight: 800;
 }
 
-/* ===== FINAL: Comment card & scroll ===== */
-
-/* 外層 Comment 卡片：高度限制在視窗內，不再撐出右欄 */
 .comment-card {
     flex: 1 1 auto;
     min-height: 0;
-    max-height: calc(100vh - 190px); /* 視窗高度 - 上面 header、Year、Company 的空間 */
+    max-height: calc(100vh - 190px);
     display: flex;
     flex-direction: column;
 }
 
-/* 內層內容：在卡片裡自己滾動 */
 .comment-card .comment-content {
     margin-top: 6px;
     font-size: 13.5px;
@@ -758,14 +709,13 @@ html, body {
 
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;       /* ⭐ 超出的部分在這個虛線框裡捲動 */
+    overflow-y: auto;
     padding: 8px 10px;
     border-radius: 8px;
     background: #f9fafb;
     border: 1px dashed rgba(148, 163, 184, 0.9);
 }
 
-/* Markdown 標題、列表、引用維持美化（如果你前面已經有，可以略過） */
 .comment-card .comment-content h1,
 .comment-card .comment-content h2,
 .comment-card .comment-content h3 {
@@ -795,4 +745,25 @@ html, body {
     background-color: #f9fafb;
     border-radius: 4px;
     color: #4b5563;
+}
+
+.dropdown-card .clean-dropdown .Select-menu-outer {
+  max-height: 180px !important;
+  overflow-y: auto !important;
+}
+
+.dropdown-card .clean-dropdown .Select-menu {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.dropdown-card .clean-dropdown .VirtualizedSelectFocusedOption,
+.dropdown-card .clean-dropdown .VirtualizedSelectOption {
+  overflow: visible !important;
+}
+
+.dropdown-card .clean-dropdown .VirtualizedSelectGrid,
+.dropdown-card .clean-dropdown .VirtualizedSelectOptionGroup,
+.dropdown-card .clean-dropdown .VirtualizedSelectOptionGroupHeader {
+  overflow: visible !important;
 }
