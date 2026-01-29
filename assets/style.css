@@ -404,7 +404,7 @@ html, body {
 .comment-scroll-buttons {
     position: absolute;
     right: 28px;
-    bottom: 40px;
+    bottom: 30px;
     display: none;
     flex-direction: column;
     gap: 3px;
