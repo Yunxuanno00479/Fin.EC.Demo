@@ -4,6 +4,8 @@ from dash import dcc, html, Input, Output, State, ctx, ALL
 import pandas as pd
 from pathlib import Path
 import plotly.graph_objs as go
+import numpy as np
+from datetime import datetime
 
 # ============================================================
 # 0. Config & Paths
@@ -21,9 +23,8 @@ QUOTE_COLS = [
     "Quote_Volatility",
 ]
 TRADE_COLS = [
-    "trade_count",
-    "trade_volume",
-    "trade_vwap",
+    "Trade_Count",
+    "Trade_Volume",
 ]
 
 # Quarter buttons style
@@ -40,46 +41,62 @@ STYLE_INACTIVE = {
 
 # Key Indicators line colors
 INDICATOR_COLORS = {
-    "Bid Ask Spread":          "#3B5FA5",
-    "Order Book Imbalance":    "#C06A2C",
-    "Quote Revision Frequency":"#4C9A62",
-    "Quote Volatility":        "#7A68B3",
-    "trade count":             "#B45309",
-    "trade volume":            "#2F7F7A",
-    "trade vwap":              "#4B8FA8",
+    "Bid Ask Spread":          "#1f77b4",
+    "Order Book Imbalance":    "#ff7f0e",
+    "Quote Revision Frequency":"#2ca02c",
+    "Quote Volatility":        "#9467bd",
+    "Trade Count":             "#d62728",
+    "Trade Volume":            "#17becf",
 }
-
 
 # Q&A cumulative line colors
 QA_DIM_COLORS = {
-    "assertive": "#3B5FA5",
-    "cautious":  "#4C9A62",
-    "optimistic":"#7A68B3",
-    "specific":  "#5C6F7B",
-    "clear":     "#4FA3BF",
-    "relevant":  "#9A9A9A",
+    "assertive": "#1f77b4",
+    "cautious":  "#2ca02c",
+    "optimistic":"#9467bd",
+    "specific":  "#8c564b",
+    "clear":     "#17becf",
+    "relevant":  "#7f7f7f",
+}
+
+# Change Point color
+CHANGE_POINT_COLOR = "#d62728"
+
+# Q&A Change Point badge colors
+QA_CP_BADGE_COLORS = {
+    "assertive": {"bg": "#E3F2FD", "border": "#1976D2", "text": "#0D47A1"},
+    "cautious":  {"bg": "#E8F5E9", "border": "#388E3C", "text": "#1B5E20"},
+    "optimistic":{"bg": "#F3E5F5", "border": "#7B1FA2", "text": "#4A148C"},
+    "specific":  {"bg": "#FFEBEE", "border": "#C62828", "text": "#B71C1C"},
+    "clear":     {"bg": "#E0F7FA", "border": "#0097A7", "text": "#006064"},
+    "relevant":  {"bg": "#F5F5F5", "border": "#616161", "text": "#212121"},
 }
 
 # ============================================================
 # Shared plot styling
 # ============================================================
 
-SHARED_PLOT_MARGIN = dict(l=44, r=44, t=40, b=36)
+SHARED_PLOT_MARGIN = dict(l=50, r=50, t=56, b=36)
 
-AXIS_TICK_FONT = dict(size=10, color="#374151")
-AXIS_TITLE_FONT = dict(size=11, color="#6b7280")
+AXIS_TICK_FONT = dict(size=11, color="#374151")
+AXIS_TITLE_FONT = dict(size=12, color="#1f2937", family="Arial")
 
 SHARED_XAXIS_STYLE = dict(
-    title=dict(text="Timestamp", font=AXIS_TITLE_FONT, standoff=6),
+    title=dict(text="Time (seconds since call start)", font=AXIS_TITLE_FONT, standoff=8),
     tickfont=AXIS_TICK_FONT,
     ticks="outside",
-    ticklen=4,
-    tickwidth=1,
+    ticklen=5,
+    tickwidth=1.5,
     showline=True,
-    linewidth=1,
+    linewidth=1.5,
     linecolor="#9ca3af",
-    zeroline=False,
+    zeroline=True,
+    zerolinewidth=1,
+    zerolinecolor="#e5e7eb",
     mirror=False,
+    showgrid=True,
+    gridwidth=1,
+    gridcolor="rgba(156, 163, 175, 0.2)",
 )
 
 # ============================================================
@@ -96,22 +113,31 @@ DROPDOWN_OPTIONS = [
 # 2. Data loader helpers
 # ============================================================
 
+def safe_numeric_convert(series, default=np.nan):
+    """Safely convert series to numeric with error handling."""
+    try:
+        return pd.to_numeric(series, errors="coerce").fillna(default)
+    except Exception:
+        return pd.Series([default] * len(series))
+
 
 def load_pre_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
-    """Load presentation data. Normalizes columns for backward compatibility."""
+    """Load presentation data with improved error handling."""
     path = DATA_DIR / "Pre_finbert_tone" / f"{tic}_{year}_pre.csv"
     if not path.exists():
         return pd.DataFrame()
 
-    df = pd.read_csv(path).copy()
+    try:
+        df = pd.read_csv(path).copy()
+    except Exception as e:
+        print(f"Error loading {path}: {e}")
+        return pd.DataFrame()
 
-    # Quarter filter
     if "quarter" in df.columns:
         df = df[df["quarter"] == quarter].copy()
     if df.empty:
         return df
 
-    # Section ID
     if "section_id" in df.columns:
         df["section_id"] = df["section_id"].astype(int)
     elif "sent_section_id" in df.columns:
@@ -119,15 +145,13 @@ def load_pre_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
     else:
         df["section_id"] = range(1, len(df) + 1)
 
-    # Timestamp (seconds)
     if "timestamp_p" in df.columns:
-        df["timestamp_sec"] = df["timestamp_p"].astype(float)
+        df["timestamp_sec"] = safe_numeric_convert(df["timestamp_p"], 0.0)
     elif "timestamp_sec" in df.columns:
-        df["timestamp_sec"] = df["timestamp_sec"].astype(float)
+        df["timestamp_sec"] = safe_numeric_convert(df["timestamp_sec"], 0.0)
     else:
-        df["timestamp_sec"] = range(len(df))
+        df["timestamp_sec"] = np.arange(len(df), dtype=float)
 
-    # Text
     if "presentation_text" in df.columns:
         df["display_text"] = df["presentation_text"].fillna("")
     elif "text" in df.columns:
@@ -135,46 +159,54 @@ def load_pre_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
     else:
         df["display_text"] = ""
 
-    # Cumulative tone
     if "finberttone_cumulative_tone" in df.columns:
-        df["cumulative_tone"] = pd.to_numeric(df["finberttone_cumulative_tone"], errors="coerce")
+        df["cumulative_tone"] = safe_numeric_convert(df["finberttone_cumulative_tone"])
     elif "cumulative_tone" in df.columns:
-        df["cumulative_tone"] = pd.to_numeric(df["cumulative_tone"], errors="coerce")
+        df["cumulative_tone"] = safe_numeric_convert(df["cumulative_tone"])
     else:
-        df["cumulative_tone"] = float("nan")
+        df["cumulative_tone"] = np.nan
 
-    # Expected value tone
     if "finberttone_expected_value" in df.columns:
-        df["tone_expected_value"] = pd.to_numeric(df["finberttone_expected_value"], errors="coerce")
+        df["tone_expected_value"] = safe_numeric_convert(df["finberttone_expected_value"])
     elif "tone_expected_value" in df.columns:
-        df["tone_expected_value"] = pd.to_numeric(df["tone_expected_value"], errors="coerce")
+        df["tone_expected_value"] = safe_numeric_convert(df["tone_expected_value"])
     else:
-        df["tone_expected_value"] = float("nan")
+        df["tone_expected_value"] = np.nan
 
-    # Change point
+    # Tone label and score for hover
+    if "tone_label" not in df.columns:
+        df["tone_label"] = ""
+    if "tone_score" not in df.columns:
+        df["tone_score"] = np.nan
+
     change_point_cols = [c for c in df.columns if c.endswith("_change_point")]
     if change_point_cols:
         cp_col = "finberttone_change_point" if "finberttone_change_point" in change_point_cols else change_point_cols[0]
         df[cp_col] = df[cp_col].fillna(0).astype(int)
         df["is_changepoint"] = (df[cp_col] == 1).astype(int)
+    else:
+        df["is_changepoint"] = 0
+        
     return df
 
 
 def load_qa_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
-    """Load Q&A data. Normalizes columns for backward compatibility."""
+    """Load Q&A data with improved error handling."""
     path = DATA_DIR / "QA_subjectiveqa" / f"{tic}_{year}_qa.csv"
     if not path.exists():
         return pd.DataFrame()
 
-    df = pd.read_csv(path).copy()
+    try:
+        df = pd.read_csv(path).copy()
+    except Exception as e:
+        print(f"Error loading {path}: {e}")
+        return pd.DataFrame()
 
-    # Quarter filter
     if "quarter" in df.columns:
         df = df[df["quarter"] == quarter].copy()
     if df.empty:
         return df
 
-    # Section ID
     if "QA_Index" in df.columns:
         df["section_id"] = df["QA_Index"].astype(int)
     elif "section_id" in df.columns:
@@ -184,60 +216,54 @@ def load_qa_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
     else:
         df["section_id"] = range(1, len(df) + 1)
 
-    # Timestamps
     if "Q_Timestamp" in df.columns:
-        df["timestamp_Q"] = pd.to_numeric(df["Q_Timestamp"], errors="coerce")
+        df["timestamp_Q"] = safe_numeric_convert(df["Q_Timestamp"], 0.0)
         df["timestamp_sec"] = df["timestamp_Q"]
     else:
         if "timestamp_Q" in df.columns:
-            df["timestamp_Q"] = pd.to_numeric(df["timestamp_Q"], errors="coerce")
+            df["timestamp_Q"] = safe_numeric_convert(df["timestamp_Q"], 0.0)
         if "timestamp_A" in df.columns:
-            df["timestamp_A"] = pd.to_numeric(df["timestamp_A"], errors="coerce")
-        df["timestamp_sec"] = df["timestamp_Q"] if "timestamp_Q" in df.columns else range(len(df))
+            df["timestamp_A"] = safe_numeric_convert(df["timestamp_A"], 0.0)
+        df["timestamp_sec"] = df.get("timestamp_Q", pd.Series(range(len(df)), dtype=float))
 
-    # Text
     if "Question" in df.columns:
         df["question_text"] = df["Question"].fillna("")
     else:
-        df["question_text"] = df.get("question_text", "").fillna("") if isinstance(df.get("question_text", ""), pd.Series) else df.get("question_text", "")
+        df["question_text"] = ""
 
     if "Answer" in df.columns:
         df["answer_text"] = df["Answer"].fillna("")
     else:
-        df["answer_text"] = df.get("answer_text", "").fillna("") if isinstance(df.get("answer_text", ""), pd.Series) else df.get("answer_text", "")
+        df["answer_text"] = ""
 
     df["display_text"] = "Q: " + df["question_text"].astype(str) + "\nA: " + df["answer_text"].astype(str)
 
-    # Normalize QA dimension columns
     dims = ["assertive", "cautious", "optimistic", "specific", "clear", "relevant"]
     for d in dims:
-        # Cumulative
         if f"{d}_cumulative_tone" in df.columns:
-            df[f"qa_{d}_cumulative"] = pd.to_numeric(df[f"{d}_cumulative_tone"], errors="coerce")
+            df[f"qa_{d}_cumulative"] = safe_numeric_convert(df[f"{d}_cumulative_tone"])
         elif f"qa_{d}_cumulative" in df.columns:
-            df[f"qa_{d}_cumulative"] = pd.to_numeric(df[f"qa_{d}_cumulative"], errors="coerce")
+            df[f"qa_{d}_cumulative"] = safe_numeric_convert(df[f"qa_{d}_cumulative"])
         else:
-            df[f"qa_{d}_cumulative"] = float("nan")
+            df[f"qa_{d}_cumulative"] = np.nan
 
-        # Expected value
         if f"{d}_expected_value" in df.columns:
-            df[f"qa_{d}_expected_value"] = pd.to_numeric(df[f"{d}_expected_value"], errors="coerce")
+            df[f"qa_{d}_expected_value"] = safe_numeric_convert(df[f"{d}_expected_value"])
         elif f"qa_{d}_expected_value" in df.columns:
-            df[f"qa_{d}_expected_value"] = pd.to_numeric(df[f"qa_{d}_expected_value"], errors="coerce")
+            df[f"qa_{d}_expected_value"] = safe_numeric_convert(df[f"qa_{d}_expected_value"])
         else:
-            df[f"qa_{d}_expected_value"] = float("nan")
+            df[f"qa_{d}_expected_value"] = np.nan
 
-        # Change point
-        if f"{d}_change_point" in df.columns:
-            df[f"qa_{d}_change_point"] = df[f"{d}_change_point"].fillna(0).astype(int)
-        elif f"qa_{d}_change_point" in df.columns:
-            df[f"qa_{d}_change_point"] = df[f"qa_{d}_change_point"].fillna(0).astype(int)
+        cp_col = f"{d}_change_point"
+        if cp_col in df.columns:
+            df[f"qa_{d}_change_point"] = df[cp_col].fillna(0).astype(int)
+        elif f"qa_{cp_col}" in df.columns:
+            df[f"qa_{d}_change_point"] = df[f"qa_{cp_col}"].fillna(0).astype(int)
         else:
             df[f"qa_{d}_change_point"] = 0
 
-    # Aggregate change point flag
-    cp_cols_new = [c for c in df.columns if c.endswith("_change_point")]
-
+    cp_cols_new = [f"qa_{d}_change_point" for d in dims if f"qa_{d}_change_point" in df.columns]
+    
     if cp_cols_new:
         df["is_changepoint"] = df[cp_cols_new].fillna(0).astype(int).eq(1).any(axis=1).astype(int)
     else:
@@ -246,15 +272,18 @@ def load_qa_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
     return df
 
 
-def load_panel_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
+def load_panel_df(tic: str, year: int, quarter: int, mode: str = "all") -> pd.DataFrame:
     """Load quote/trade panel data."""
     path = DATA_DIR / "Panel_quote_trade" / f"{tic}_{year}_panel.csv"
     if not path.exists():
         return pd.DataFrame()
 
-    df = pd.read_csv(path).copy()
+    try:
+        df = pd.read_csv(path).copy()
+    except Exception as e:
+        print(f"Error loading {path}: {e}")
+        return pd.DataFrame()
 
-    # Year / quarter filter
     if "year" in df.columns:
         df = df[df["year"] == year]
     if "quarter" in df.columns:
@@ -262,40 +291,51 @@ def load_panel_df(tic: str, year: int, quarter: int) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Timestamp processing: prefer timestamp_et_full
-    if "timestamp_et_full" in df.columns:
-        df["timestamp_et_full"] = pd.to_datetime(df["timestamp_et_full"], errors="coerce")
-        df = df.dropna(subset=["timestamp_et_full"])
-        if df.empty:
-            return df
-        base = df["timestamp_et_full"].min()
-        df["timestamp_sec"] = (df["timestamp_et_full"] - base).dt.total_seconds()
-        return df
-
-    # Fallback: parse Timestamp_UTC
-    if "Timestamp_UTC" in df.columns:
-        def parse_offset_to_sec(s: str) -> float:
-            s = str(s).strip()
-            if not s:
-                return 0.0
-            try:
-                parts = s.split(":")
-                if len(parts) == 2:
-                    m, sec = parts
-                    return int(m) * 60 + float(sec)
-                elif len(parts) == 1:
-                    return float(parts[0])
-                else:
-                    h, m, sec = parts[-3:]
-                    return int(h) * 3600 + int(m) * 60 + float(sec)
-            except Exception:
-                return 0.0
-
-        df["timestamp_sec"] = df["Timestamp_UTC"].astype(str).apply(parse_offset_to_sec)
-        return df
-
-    # Final fallback
-    df["timestamp_sec"] = range(len(df))
+    if "Timestamp_ET" in df.columns:
+        try:
+            df["timestamp_dt"] = pd.to_datetime(df["Timestamp_ET"], errors="coerce")
+            df = df.dropna(subset=["timestamp_dt"])
+            if df.empty:
+                return df
+            
+            cal_row = load_calendar_row(tic, year, quarter)
+            if cal_row is not None and pd.notna(cal_row.get("timestamp_et_start")):
+                call_start = pd.to_datetime(cal_row["timestamp_et_start"])
+                
+                if df["timestamp_dt"].dt.tz is not None and call_start.tz is None:
+                    df["timestamp_dt"] = df["timestamp_dt"].dt.tz_localize(None)
+                elif df["timestamp_dt"].dt.tz is None and call_start.tz is not None:
+                    call_start = call_start.tz_localize(None)
+                elif df["timestamp_dt"].dt.tz is not None and call_start.tz is not None:
+                    df["timestamp_dt"] = df["timestamp_dt"].dt.tz_localize(None)
+                    call_start = call_start.tz_localize(None)
+                
+                df["timestamp_sec"] = (df["timestamp_dt"] - call_start).dt.total_seconds()
+                
+                if mode != "all":
+                    pre_df = load_pre_df(tic, year, quarter)
+                    qa_df = load_qa_df(tic, year, quarter)
+                    
+                    if mode == "pre" and not pre_df.empty:
+                        pre_start = pre_df["timestamp_sec"].min()
+                        pre_end = pre_df["timestamp_sec"].max()
+                        df = df[(df["timestamp_sec"] >= pre_start) & (df["timestamp_sec"] <= pre_end)]
+                    elif mode == "qa" and not qa_df.empty:
+                        qa_start = qa_df["timestamp_sec"].min()
+                        qa_end = qa_df["timestamp_sec"].max()
+                        df = df[(df["timestamp_sec"] >= qa_start) & (df["timestamp_sec"] <= qa_end)]
+            else:
+                base = df["timestamp_dt"].min()
+                if df["timestamp_dt"].dt.tz is not None:
+                    df["timestamp_dt"] = df["timestamp_dt"].dt.tz_localize(None)
+                    base = base.tz_localize(None)
+                df["timestamp_sec"] = (df["timestamp_dt"] - base).dt.total_seconds()
+        except Exception as e:
+            print(f"Error parsing timestamps in panel data: {e}")
+            df["timestamp_sec"] = np.arange(len(df), dtype=float)
+    else:
+        df["timestamp_sec"] = np.arange(len(df), dtype=float)
+        
     return df
 
 
@@ -305,16 +345,71 @@ def load_calendar_row(tic: str, year: int, quarter: int):
     if not path.exists():
         return None
 
-    df = pd.read_csv(path)
-    row = df[(df["tic"] == tic) & (df["year"] == year) & (df["quarter"] == quarter)].head(1)
-
-    if row.empty:
+    try:
+        df = pd.read_csv(path)
+        row = df[(df["tic"] == tic) & (df["year"] == year) & (df["quarter"] == quarter)].head(1)
+        if row.empty:
+            return None
+        return row.iloc[0]
+    except Exception as e:
+        print(f"Error loading calendar: {e}")
         return None
-    return row.iloc[0]
-def load_comment_md(tic: str, year: int, quarter: int):
-    """Load Markdown comment for a given company/year/quarter."""
-    md_path = DATA_DIR / "LLM_comment" / f"{tic}_{year}_comment_{quarter}.md"
+
+
+def calculate_market_times(cal_row):
+    """Calculate market open/close times in seconds relative to call start."""
+    if cal_row is None:
+        return None, None
+    
+    try:
+        call_start = pd.to_datetime(cal_row.get("timestamp_et_start"))
+        if pd.isna(call_start):
+            return None, None
+        
+        call_date = call_start.date()
+
+        market_open = pd.to_datetime(f"{call_date} 09:30:00")  # 09:30 AM ET
+        market_close = pd.to_datetime(f"{call_date} 16:00:00")  # 04:00 PM ET
+        
+        # Handle timezone
+        if call_start.tz is not None:
+            market_open = market_open.tz_localize(call_start.tz)
+            market_close = market_close.tz_localize(call_start.tz)
+        
+        # Calculate seconds relative to call start
+        market_open_sec = (market_open - call_start).total_seconds()
+        market_close_sec = (market_close - call_start).total_seconds()
+        
+        return market_open_sec, market_close_sec
+        
+    except Exception as e:
+        print(f"Error calculating market times: {e}")
+        return None, None
+
+
+def load_comment_md(tic: str, year: int, quarter: int, mode: str = "summary", transcript_mode: str = "pre"):
+    """
+    Load Markdown comment for a given company/year/quarter.
+    mode: "summary" or "cp" (change point)
+    transcript_mode: "pre" or "qa"
+    
+    Summary mode: {tic}_{year}_{pre/qa}_comment_{quarter}.md
+    CP mode: {tic}_{year}_{pre/qa}cp_comment_{quarter}.md
+    """
+    if mode == "summary":
+        if transcript_mode == "pre":
+            md_path = DATA_DIR / "LLM_comment" / f"{tic}_{year}_pre_comment_{quarter}.md"
+        else:
+            md_path = DATA_DIR / "LLM_comment" / f"{tic}_{year}_qa_comment_{quarter}.md"
+    else:
+        if transcript_mode == "pre":
+            md_path = DATA_DIR / "LLM_comment" / f"{tic}_{year}_precp_comment_{quarter}.md"
+        else:
+            md_path = DATA_DIR / "LLM_comment" / f"{tic}_{year}_qacp_comment_{quarter}.md"
+    
     if not md_path.exists():
+        if mode == "cp":
+            return "**Current Transcript has no Change Point.**"
         return ""
 
     try:
@@ -324,17 +419,33 @@ def load_comment_md(tic: str, year: int, quarter: int):
 
 
 def _df_from_store(data):
-    """Convert store data to DataFrame."""
-    return pd.DataFrame(data) if data else pd.DataFrame()
+    """Convert store data to DataFrame with error handling."""
+    if not data:
+        return pd.DataFrame()
+    try:
+        return pd.DataFrame(data)
+    except Exception:
+        return pd.DataFrame()
 
 
 def build_global_df(pre_df: pd.DataFrame, qa_df: pd.DataFrame) -> pd.DataFrame:
     """Build global DataFrame combining pre and qa timestamps."""
-    p = pre_df[["section_id", "timestamp_sec"]].copy()
-    q = qa_df[["section_id", "timestamp_sec"]].copy()
-    p["mode"] = "pre"
-    q["mode"] = "qa"
-    return pd.concat([p, q], ignore_index=True)
+    dfs = []
+    
+    if not pre_df.empty and "section_id" in pre_df.columns and "timestamp_sec" in pre_df.columns:
+        p = pre_df[["section_id", "timestamp_sec"]].copy()
+        p["mode"] = "pre"
+        dfs.append(p)
+    
+    if not qa_df.empty and "section_id" in qa_df.columns and "timestamp_sec" in qa_df.columns:
+        q = qa_df[["section_id", "timestamp_sec"]].copy()
+        q["mode"] = "qa"
+        dfs.append(q)
+    
+    if not dfs:
+        return pd.DataFrame()
+        
+    return pd.concat(dfs, ignore_index=True)
 
 
 def choose_default_changepoint(df: pd.DataFrame) -> int:
@@ -345,30 +456,28 @@ def choose_default_changepoint(df: pd.DataFrame) -> int:
         idx = df.index[df["is_changepoint"] == 1]
         if len(idx) > 0:
             return int(df.loc[idx[0], "section_id"])
-    return int(df.iloc[0]["section_id"])
-
-
-def find_nearest_point(global_df: pd.DataFrame, timestamp: float):
-    """Find nearest point in global_df to given timestamp."""
-    if global_df.empty:
-        return "pre", 0
-    idx = (global_df["timestamp_sec"] - timestamp).abs().idxmin()
-    row = global_df.loc[idx]
-    return row["mode"], int(row["section_id"])
+    if "section_id" in df.columns:
+        return int(df.iloc[0]["section_id"])
+    return 0
 
 
 def find_nearest_section_in_mode(global_df: pd.DataFrame, x: float, mode: str) -> int:
     """Find nearest section_id by timestamp within a fixed mode (pre/qa)."""
     if global_df is None or global_df.empty:
         return 0
+    
     dfm = global_df[global_df.get("mode", "").astype(str) == str(mode)].copy()
     if dfm.empty:
-        # fallback: use all
         dfm = global_df
+    
+    if dfm.empty:
+        return 0
+        
     try:
         x = float(x)
     except Exception:
         return int(dfm.iloc[0]["section_id"]) if "section_id" in dfm.columns else 0
+    
     idx = (dfm["timestamp_sec"] - x).abs().idxmin()
     try:
         return int(dfm.loc[idx, "section_id"])
@@ -380,11 +489,11 @@ def find_nearest_section_in_mode(global_df: pd.DataFrame, x: float, mode: str) -
 # 3. Figures
 # ============================================================
 
-
-def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_range=None, legend_state=None):
-    """Build cumulative tone figure with dual y-axis for presentation."""
+def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_range=None, legend_state=None, market_times=None):
+    """Build cumulative tone figure."""
     fig = go.Figure()
     legend_state = legend_state or {}
+    
     def _vis(name: str):
         v = legend_state.get(name)
         if v is None:
@@ -403,16 +512,20 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
                     x=pre_df["timestamp_sec"],
                     y=pre_df["tone_expected_value"],
                     mode="lines",
-                    name="tone expected value",
-                    visible=_vis("tone expected value"),
-                    line=dict(shape="linear", width=1, color="#c7c7c7"),
+                    name="Tone Expected Value",
+                    visible=_vis("Tone Expected Value"),
+                    line=dict(shape="linear", width=1, color="#bdbdbd"),
                     yaxis="y",
-                    showlegend=False,
-                    hovertemplate="t=%{x:.0f}s<br>tone expected value=%{y:.3f}<extra></extra>",
+                    showlegend=True,
+                    hovertemplate="<b>Time:</b> %{x:.0f}s<br><b>Tone Expected Value:</b> %{y:.3f}<extra></extra>",
                 )
             )
 
         # Right y-axis: cumulative tone
+        customdata = None
+        if set(["tone_label", "tone_score"]).issubset(pre_df.columns):
+            customdata = pre_df[["tone_label", "tone_score"]].values
+            
         fig.add_trace(
             go.Scatter(
                 x=pre_df["timestamp_sec"],
@@ -420,16 +533,13 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
                 mode="lines",
                 name="Presentation",
                 visible=_vis("Presentation"),
-                line=dict(shape="linear", width=2.5, color="#2563eb"),
+                line=dict(shape="linear", width=3, color="#2563eb"),
                 yaxis="y2",
                 hovertemplate=(
-                    "t=%{x:.0f}s<br>cumulative tone=%{y:.3f}"
-                    + ("<br>label=%{customdata[0]}<br>score=%{customdata[1]:.3f}"
-                       if set(["tone_label", "tone_score"]).issubset(pre_df.columns) else "")
+                    "<b>Time:</b> %{x:.3f}s<br><b>Cumulative Tone:</b> %{y:.3f}"
                     + "<extra></extra>"
                 ),
-                customdata=pre_df[["tone_label", "tone_score"]].values
-                if set(["tone_label", "tone_score"]).issubset(pre_df.columns) else None,
+                customdata=customdata,
             )
         )
 
@@ -437,29 +547,37 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
         if "is_changepoint" in pre_df.columns:
             m = pre_df["is_changepoint"].fillna(0).astype(int) == 1
             if m.any():
+                #customdata：cumulative_tone, tone_expected_value
+                cp_df = pre_df.loc[m].copy()
+                cp_customdata = cp_df[["cumulative_tone", "tone_expected_value"]].values
+                    
                 fig.add_trace(
                     go.Scatter(
-                        x=pre_df.loc[m, "timestamp_sec"],
-                        y=pre_df.loc[m, "cumulative_tone"],
+                        x=cp_df["timestamp_sec"],
+                        y=cp_df["cumulative_tone"],
                         mode="markers",
                         name="Change Point",
                         visible=_vis("Change Point"),
                         hovertemplate=(
-                            "t=%{x:.0f}s<br>cumulative tone=%{y:.3f}"
-                            + ("<br>label=%{customdata[0]}<br>score=%{customdata[1]:.3f}"
-                                if set(["tone_label", "tone_score"]).issubset(pre_df.columns) else "")
-                            + "<extra></extra>"
+                            "<b>Change Point</b><br>"
+                            "<b>Time:</b> %{x:.3f}s<br>"
+                            "<b>Cumulative Tone:</b> %{customdata[0]:.3f}<br>"
+                            "<b>Tone Expected Value:</b> %{customdata[1]:.3f}"
+                            "<extra></extra>"
                         ),
-                        marker=dict(color="#d62728", size=6, symbol="circle"),
+                        marker=dict(color=CHANGE_POINT_COLOR, size=10, symbol="triangle-down", 
+                                   line=dict(color="white", width=1.5)),
                         yaxis="y2",
                         showlegend=True,
+                        customdata=cp_customdata,
                     )
                 )
-                for ts in pre_df.loc[m, "timestamp_sec"]:
+                for ts in cp_df["timestamp_sec"]:
                     fig.add_shape(
                         type="line", x0=float(ts), x1=float(ts), y0=0, y1=1,
                         xref="x", yref="paper",
-                        line=dict(color="#d62728", width=1.5, dash="dot"),
+                        line=dict(color=CHANGE_POINT_COLOR, width=1.5, dash="dot"),
+                        layer="below",
                     )
 
     # Q&A: 6 dimensions
@@ -477,10 +595,10 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
             if cum_col not in qa_df.columns:
                 continue
 
-            color = QA_DIM_COLORS.get(name, None)
-            customdata = (qa_df[[ev_col]].values
-                          if ev_col in qa_df.columns and qa_df[ev_col].notna().any()
-                          else None)
+            color = QA_DIM_COLORS.get(name, "#636363")
+            customdata = None
+            if ev_col in qa_df.columns and qa_df[ev_col].notna().any():
+                customdata = qa_df[[ev_col]].values
 
             fig.add_trace(
                 go.Scatter(
@@ -490,13 +608,13 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
                     name=name.capitalize(),
                     visible=_vis(name.capitalize()),
                     legendgroup=name,
-                    legendgrouptitle_text=None,
-                    line=dict(width=2, color=color),
-                    marker=dict(size=5, color=color),
+                    line=dict(width=1.5, color=color),
+                    marker=dict(size=4, color=color),
                     customdata=customdata,
                     hovertemplate=(
-                        f"t=%{{x:.0f}}s<br>{name} cumulative tone=%{{y:.3f}}"
-                        + (f"<br>{name} expected value=%{{customdata[0]:.3f}}" if customdata is not None else "")
+                        f"<b>{name.capitalize()}</b><br>"
+                        f"<b>Time:</b> %{{x:.3f}}s<br><b>Cumulative Tone:</b> %{{y:.3f}}"
+                        + (f"<br><b>Tone Expected Value:</b> %{{customdata[0]:.3f}}" if customdata is not None else "")
                         + "<extra></extra>"
                     ),
                 )
@@ -506,85 +624,237 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
             if cp_col in qa_df.columns:
                 m_cp = qa_df[cp_col].fillna(0).astype(int) == 1
                 if m_cp.any():
+                    cp_qa_df = qa_df.loc[m_cp].copy()
+                    # customdata: cumulative, expected_value
+                    cp_qa_customdata = cp_qa_df[[cum_col, ev_col]].values if ev_col in cp_qa_df.columns else cp_qa_df[[cum_col]].values
+                    
                     fig.add_trace(
                         go.Scatter(
-                            x=qa_df.loc[m_cp, "timestamp_sec"],
-                            y=qa_df.loc[m_cp, cum_col],
+                            x=cp_qa_df["timestamp_sec"],
+                            y=cp_qa_df[cum_col],
                             mode="markers",
                             name=f"{name.capitalize()} CP",
                             visible=_vis(name.capitalize()),
                             legendgroup=name,
-                            marker=dict(color=color, size=10, symbol="triangle-down", line=dict(color="white", width=1)),
+                            marker=dict(color=CHANGE_POINT_COLOR, size=10, symbol="triangle-down", 
+                                       line=dict(color="white", width=1.5)),
                             showlegend=False,
+                            hovertemplate=(
+                                f"<b>{name.capitalize()} Change Point</b><br>"
+                                f"<b>Time:</b> %{{x:.3f}}s<br>"
+                                f"<b>Cumulative Tone:</b> %{{customdata[0]:.3f}}<br>"
+                                + (f"<b>Tone Expected Value:</b> %{{customdata[1]:.3f}}" if ev_col in cp_qa_df.columns else "")
+                                + "<extra></extra>"
+                            ),
+                            customdata=cp_qa_customdata,
                         )
                     )
-                    # Per-dimension change point vertical lines (full-height; toggled with legend)
                     dim_vis = _vis(name.capitalize())
                     if dim_vis != "legendonly":
-                        for ts in qa_df.loc[m_cp, "timestamp_sec"].astype(float).tolist():
+                        for ts in cp_qa_df["timestamp_sec"].astype(float).tolist():
                             fig.add_shape(
                                 type="line", x0=float(ts), x1=float(ts), y0=0, y1=1,
                                 xref="x", yref="paper",
-                                line=dict(color=color, width=1.5, dash="dot"),
+                                line=dict(color=CHANGE_POINT_COLOR, width=1.5, dash="dot"),
+                                layer="below",
                             )
-
 
     # Active vertical line
     df = pre_df if active_mode == "pre" else qa_df
-    if not df.empty:
+    if not df.empty and "section_id" in df.columns:
         r = df[df["section_id"] == active_section_id]
-        if not r.empty:
+        if not r.empty and "timestamp_sec" in r.columns:
             ts = float(r.iloc[0]["timestamp_sec"])
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[ts],
+                    y=[0.5],
+                    mode="markers",
+                    name="Active Line Control",
+                    marker=dict(
+                        size=15,
+                        color="rgba(0,0,0,0.3)",
+                        symbol="line-ns-open",
+                        line=dict(width=3, color="#000000"),
+                    ),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    yaxis="y2" if (show_pre and not pre_df.empty) else "y",
+                    customdata=[[active_section_id]],
+                )
+            )
             fig.add_shape(
                 type="line", x0=ts, x1=ts, y0=0, y1=1,
                 xref="x", yref="paper",
-                line=dict(color="black", width=2),
+                line=dict(color="#000000", width=3),
+                layer="above",
             )
+    
+    # Market open/close time markers
+    if market_times is not None and segment_range is not None:
+        market_open_sec, market_close_sec = market_times
+        x_min, x_max = segment_range
+        
+        # Pre-Market
+        if market_open_sec is not None and market_open_sec > x_min:
+            pre_market_end = min(market_open_sec, x_max)
+            # background
+            fig.add_shape(
+                type="rect",
+                x0=x_min, x1=pre_market_end,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                fillcolor="rgba(14, 165, 233, 0.02)",
+                line=dict(width=0),
+                layer="below",
+            )
+            # fine dotted line
+            fig.add_shape(
+                type="line",
+                x0=market_open_sec, x1=market_open_sec,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(color="rgba(14, 165, 233, 0.7)", width=0.5, dash="dot"),
+                layer="below",
+            )
+            # small label
+            if pre_market_end - x_min > (x_max - x_min) * 0.1:
+                fig.add_annotation(
+                    x=x_min + (pre_market_end - x_min) * 0.02,
+                    y=1.05,
+                    xref="x", yref="paper",
+                    text="Pre-Market",
+                    showarrow=False,
+                    font=dict(size=7, color="rgba(14, 165, 233, 0.6)"),
+                    xanchor="left",
+                    yanchor="top",
+                )
+        
+        # After-Hours
+        if market_close_sec is not None and market_close_sec < x_max:
+            after_market_start = max(market_close_sec, x_min)
+            # background
+            fig.add_shape(
+                type="rect",
+                x0=after_market_start, x1=x_max,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                fillcolor="rgba(251, 191, 36, 0.03)",
+                line=dict(width=0),
+                layer="below",
+            )
+            # fine dotted line
+            fig.add_shape(
+                type="line",
+                x0=market_close_sec, x1=market_close_sec,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(color="rgba(251, 191, 36, 0.7)", width=0.5, dash="dot"),
+                layer="below",
+            )
+            # small label
+            if x_max - after_market_start > (x_max - x_min) * 0.1:
+                fig.add_annotation(
+                    x=x_max - (x_max - after_market_start) * 0.02,
+                    y=1.05,
+                    xref="x", yref="paper",
+                    text="After-Hours",
+                    showarrow=False,
+                    font=dict(size=7, color="rgba(251, 191, 36, 0.9)"),
+                    xanchor="right",
+                    yanchor="top",
+                )
 
     # X-axis range
     if segment_range is not None:
         x_min, x_max = segment_range
         if x_min is not None and x_max is not None and x_min < x_max:
             span = x_max - x_min
-            dtick = max(span / 5.0, 1.0)
+            dtick = max(span / 8.0, 1.0)
             fig.update_xaxes(range=[x_min, x_max], tickmode="linear", tick0=x_min, dtick=dtick)
 
-    # Layout
+    # Layout with legend at top
     legend_config = dict(
         groupclick="togglegroup",
-        orientation="h", yanchor="bottom", y=1.08, xanchor="left", x=0,
-        bgcolor="rgba(255,255,255,0.9)", bordercolor="#e5e7eb", borderwidth=1, font=dict(size=10),
+        orientation="h", 
+        yanchor="bottom", 
+        y=1.06,
+        xanchor="left", 
+        x=0,
+        bgcolor="rgba(255,255,255,0.95)", 
+        bordercolor="#cbd5e1", 
+        borderwidth=1.5, 
+        font=dict(size=10),
     )
 
     if show_pre and not pre_df.empty:
         fig.update_layout(
             margin=SHARED_PLOT_MARGIN,
             xaxis=dict(**SHARED_XAXIS_STYLE),
-            yaxis=dict(title=dict(text="Tone Expected Value", font=AXIS_TITLE_FONT, standoff=6), tickfont=AXIS_TICK_FONT, automargin=True, zeroline=False),
-            yaxis2=dict(title=dict(text="Cumulative Tone", font=AXIS_TITLE_FONT, standoff=6), tickfont=AXIS_TICK_FONT, automargin=True, overlaying="y", side="right", zeroline=False),
+            yaxis=dict(
+                title=dict(text="Tone Expected Value", font=AXIS_TITLE_FONT, standoff=8), 
+                tickfont=AXIS_TICK_FONT, 
+                automargin=True, 
+                zeroline=True,
+                zerolinewidth=1,
+                zerolinecolor="#e5e7eb",
+                showgrid=True,
+                gridwidth=1,
+                gridcolor="rgba(156, 163, 175, 0.2)",
+            ),
+            yaxis2=dict(
+                title=dict(text="Cumulative Tone", font=AXIS_TITLE_FONT, standoff=8), 
+                tickfont=AXIS_TICK_FONT, 
+                automargin=True, 
+                overlaying="y", 
+                side="right", 
+                zeroline=True,
+                zerolinewidth=1,
+                zerolinecolor="#e5e7eb",
+                showgrid=False,
+            ),
             template=None,
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(249, 250, 251, 0.5)",
             legend=legend_config,
             uirevision="tone",
+            hovermode="closest",
+            dragmode=False,
         )
     else:
         fig.update_layout(
             margin=SHARED_PLOT_MARGIN,
             xaxis=dict(**SHARED_XAXIS_STYLE),
-            yaxis=dict(title=dict(text="Cumulative Tone", font=AXIS_TITLE_FONT, standoff=6), tickfont=AXIS_TICK_FONT, automargin=True, zeroline=False),
+            yaxis=dict(
+                title=dict(text="Cumulative Tone", font=AXIS_TITLE_FONT, standoff=8), 
+                tickfont=AXIS_TICK_FONT, 
+                automargin=True, 
+                zeroline=True,
+                zerolinewidth=1,
+                zerolinecolor="#e5e7eb",
+                showgrid=True,
+                gridwidth=1,
+                gridcolor="rgba(156, 163, 175, 0.2)",
+            ),
             template=None,
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(249, 250, 251, 0.5)",
             legend=legend_config,
             uirevision="tone",
+            hovermode="closest",
+            dragmode=False,
         )
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
+    if show_pre and not pre_df.empty:
+        fig.update_layout(yaxis2=dict(fixedrange=True))
 
     return fig
 
 
-def build_indicator_figure(panel_df, active_timestamp, indicator_mode, segment_range=None, legend_state=None):
-    """Build key indicators figure with clean legend labels."""
+def build_indicator_figure(panel_df, active_timestamp, indicator_mode, segment_range=None, legend_state=None, market_times=None):
+    """Build key indicators figure"""
     fig = go.Figure()
     legend_state = legend_state or {}
     
@@ -598,58 +868,70 @@ def build_indicator_figure(panel_df, active_timestamp, indicator_mode, segment_r
         fig.update_layout(
             margin=SHARED_PLOT_MARGIN,
             xaxis=dict(**SHARED_XAXIS_STYLE),
-            yaxis=dict(title=dict(text="Key Indicators", font=AXIS_TITLE_FONT, standoff=6), tickfont=AXIS_TICK_FONT, automargin=True, zeroline=False),
+            yaxis=dict(
+                title=dict(text="Value", font=AXIS_TITLE_FONT, standoff=8), 
+                tickfont=AXIS_TICK_FONT, 
+                automargin=True, 
+                zeroline=True,
+                zerolinewidth=1,
+                zerolinecolor="#e5e7eb",
+            ),
             template=None,
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(249, 250, 251, 0.5)",
             uirevision="indicators",
             legend=dict(
                 groupclick="togglegroup",
-                orientation="h", yanchor="bottom", y=1.08, xanchor="left", x=0,
-                bgcolor="rgba(255,255,255,0.9)", bordercolor="#e5e7eb", borderwidth=1, font=dict(size=10),
+                orientation="h", yanchor="bottom", y=1.05, xanchor="left", x=0,
+                bgcolor="rgba(255,255,255,0.95)", bordercolor="#cbd5e1", borderwidth=1.5, font=dict(size=10),
             ),
+            dragmode="pan",
         )
         return fig
 
-    # Mapping: Original Column Name -> Desired Legend Label
     LABEL_MAP = {
         "Bid_Ask_Spread": "Bid Ask Spread",
         "Order_Book_Imbalance": "Order Book Imbalance",
         "Quote_Revision_Frequency": "Quote Revision Frequency",
         "Quote_Volatility": "Quote Volatility",
-        "trade_count": "Trade Count",
-        "trade_volume": "Trade Volume",
-        "trade_vwap": "Trade vwap"
+        "Trade_Count": "Trade Count",
+        "Trade_Volume": "Trade Volume",
     }
     
-    # Mapping: Display Label -> Color Key (to match INDICATOR_COLORS dictionary keys)
     COLOR_KEY_MAP = {
         "Bid Ask Spread": "Bid Ask Spread",
         "Order Book Imbalance": "Order Book Imbalance",
         "Quote Revision Frequency": "Quote Revision Frequency",
         "Quote Volatility": "Quote Volatility",
-        "Trade Count": "trade count",
-        "Trade Volume": "trade volume",
-        "Trade vwap": "trade vwap"
+        "Trade Count": "Trade Count",
+        "Trade Volume": "Trade Volume",
     }
 
     allowed = TRADE_COLS if indicator_mode == "trade" else QUOTE_COLS
     cols = [c for c in allowed if c in panel_df.columns]
+    
+    if not cols:
+        return fig
+    
     x = panel_df["timestamp_sec"]
-
+    
     for col in cols:
+        mask = panel_df[col].notna()
+        if not mask.any():
+            continue
+            
         display_name = LABEL_MAP.get(col, col)
         color_lookup_key = COLOR_KEY_MAP.get(display_name, display_name)
         
         fig.add_trace(
             go.Scatter(
-                x=x,
-                y=panel_df[col],
+                x=x[mask],
+                y=panel_df.loc[mask, col],
                 mode="lines",
                 name=display_name,
                 visible=_vis(display_name),
-                line=dict(width=2, color=INDICATOR_COLORS.get(color_lookup_key, None)),
-                hovertemplate="t=%{x:.0f}s<br>%{y:.3f}<extra></extra>",
+                line=dict(width=1.5, color=INDICATOR_COLORS.get(color_lookup_key, "#636363")),
+                hovertemplate=f"<b>{display_name}</b><br><b>Time:</b> %{{x:.3f}}s<br><b>Value:</b> %{{y:.4f}}<extra></extra>",
             )
         )
 
@@ -658,68 +940,153 @@ def build_indicator_figure(panel_df, active_timestamp, indicator_mode, segment_r
         fig.add_shape(
             type="line", x0=active_timestamp, x1=active_timestamp, y0=0, y1=1,
             xref="x", yref="paper",
-            line=dict(color="black", width=2),
+            line=dict(color="#000000", width=3),
+            layer="above",
         )
+    
+    # Market open/close time markers
+    if market_times is not None and segment_range is not None:
+        market_open_sec, market_close_sec = market_times
+        x_min, x_max = segment_range
+        
+        # Pre-market
+        if market_open_sec is not None and market_open_sec > x_min:
+            pre_market_end = min(market_open_sec, x_max)
+            # background
+            fig.add_shape(
+                type="rect",
+                x0=x_min, x1=pre_market_end,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                fillcolor="rgba(14, 165, 233, 0.03)",
+                line=dict(width=0),
+                layer="below",
+            )
+            # fine dotted line
+            fig.add_shape(
+                type="line",
+                x0=market_open_sec, x1=market_open_sec,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(color="rgba(14, 165, 233, 0.7)", width=0.5, dash="dot"),  # 細線 + dot虛線
+                layer="below",
+            )
+            # small label
+            if pre_market_end - x_min > (x_max - x_min) * 0.1:
+                fig.add_annotation(
+                    x=x_min + (pre_market_end - x_min) * 0.02,
+                    y=1.05,
+                    xref="x", yref="paper",
+                    text="Pre-Market",
+                    showarrow=False,
+                    font=dict(size=7, color="rgba(14, 165, 233, 0.6)"),
+                    xanchor="left",
+                    yanchor="top",
+                )
+        
+        # After-hours
+        if market_close_sec is not None and market_close_sec < x_max:
+            after_market_start = max(market_close_sec, x_min)
+            # background
+            fig.add_shape(
+                type="rect",
+                x0=after_market_start, x1=x_max,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                fillcolor="rgba(251, 191, 36, 0.03)",
+                line=dict(width=0),
+                layer="below",
+            )
+            # fine dotted line
+            fig.add_shape(
+                type="line",
+                x0=market_close_sec, x1=market_close_sec,
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(color="rgba(251, 191, 36, 0.7)", width=0.5, dash="dot"),
+                layer="below",
+            )
+            # small label
+            if x_max - after_market_start > (x_max - x_min) * 0.1:
+                fig.add_annotation(
+                    x=x_max - (x_max - after_market_start) * 0.02,
+                    y=1.05,
+                    xref="x", yref="paper",
+                    text="After-Hours",
+                    showarrow=False,
+                    font=dict(size=7, color="rgba(251, 191, 36, 0.9)"),
+                    xanchor="right",
+                    yanchor="top",
+                )
 
     # X-axis range
     if segment_range is not None:
         x_min, x_max = segment_range
         if x_min is not None and x_max is not None and x_min < x_max:
             span = x_max - x_min
-            dtick = max(span / 5.0, 1.0)
+            dtick = max(span / 8.0, 1.0)
             fig.update_xaxes(range=[x_min, x_max], tickmode="linear", tick0=x_min, dtick=dtick)
 
     fig.update_layout(
         margin=SHARED_PLOT_MARGIN,
         xaxis=dict(**SHARED_XAXIS_STYLE),
-        yaxis=dict(title=dict(text="Key Indicators", font=AXIS_TITLE_FONT, standoff=6), tickfont=AXIS_TICK_FONT, automargin=True, zeroline=False),
+        yaxis=dict(
+            title=dict(text="Value", font=AXIS_TITLE_FONT, standoff=8), 
+            tickfont=AXIS_TICK_FONT, 
+            automargin=True, 
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor="#e5e7eb",
+            showgrid=True,
+            gridwidth=1,
+            gridcolor="rgba(156, 163, 175, 0.2)",
+        ),
         template=None,
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(249, 250, 251, 0.5)",
         uirevision="indicators",
+        hovermode="closest",
         legend=dict(
             groupclick="togglegroup",
-            orientation="h", yanchor="bottom", y=1.08, xanchor="left", x=0,
-            bgcolor="rgba(255,255,255,0.9)", bordercolor="#e5e7eb", borderwidth=1, font=dict(size=10),
+            orientation="h", yanchor="bottom", y=1.06, xanchor="left", x=0,
+            bgcolor="rgba(255,255,255,0.95)", bordercolor="#cbd5e1", borderwidth=1.5, font=dict(size=10),
         ),
+        dragmode=False,
     )
+    
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
 
     return fig
-def build_transcript_children(df, active_section_id, scroll_state):
-    """Build transcript cards with more/less window."""
-    if df.empty:
-        return [html.Div("No transcript data", className="transcript-empty")]
 
-    scroll_state = scroll_state or {}
-    above_more = bool(scroll_state.get("above_more", False))
-    below_more = bool(scroll_state.get("below_more", False))
+
+def build_transcript_children(df, active_section_id, show_all):
+    """
+    Build transcript cards.
+    show_all=True: show all
+    show_all=False: only show active and one above and below
+    """
+    if df.empty:
+        return [html.Div("No transcript data available", className="transcript-empty")]
 
     df_sorted = df.sort_values("timestamp_sec").reset_index(drop=True)
-    
-    # 找到 active_section_id 在排序後 DataFrame 中的位置
+
     idx = df_sorted.index[df_sorted["section_id"] == active_section_id]
     if len(idx) == 0:
-        # 如果找不到，使用第一個
         center_i = 0
-        active_section_id = int(df_sorted.iloc[0]["section_id"])
+        display_section_id = int(df_sorted.iloc[0]["section_id"])
     else:
         center_i = int(idx[0])
+        display_section_id = active_section_id
     
-    # 獲取 active 卡片的 timestamp，用於後續比較
     active_timestamp = float(df_sorted.iloc[center_i]["timestamp_sec"])
 
-    # Window size - 確保 center_i 始終作為中心點
-    base_above = 1
-    base_below = 1
-    more_above = 5
-    more_below = 5
-
-    # 根據 more/less 狀態計算範圍，但始終以 center_i 為中心
-    above_range = (base_above + more_above) if above_more else base_above
-    below_range = (base_below + more_below) if below_more else base_below
-
-    start_i = max(center_i - above_range, 0)
-    end_i = min(center_i + below_range, len(df_sorted) - 1)
+    if show_all:
+        start_i = 0
+        end_i = len(df_sorted) - 1
+    else:
+        start_i = max(center_i - 1, 0)
+        end_i = min(center_i + 1, len(df_sorted) - 1)
 
     children = []
     is_pre = "presentation_text" in df.columns
@@ -730,18 +1097,15 @@ def build_transcript_children(df, active_section_id, scroll_state):
 
         classes = ["transcript-line"]
         
-        # 關鍵修改：使用 section_id 和 timestamp 雙重判斷
-        if sec_id == active_section_id:
+        if sec_id == display_section_id:
             classes.append("transcript-active")
         else:
-            # 使用 timestamp 來判斷上下關係，而不是索引位置
             row_timestamp = float(row["timestamp_sec"])
             if row_timestamp < active_timestamp:
                 classes.append("transcript-above")
             else:
                 classes.append("transcript-below")
 
-        # Meta rows
         meta_rows = []
 
         if is_pre:
@@ -755,28 +1119,27 @@ def build_transcript_children(df, active_section_id, scroll_state):
             if speaker_spans:
                 meta_rows.append(html.Div(speaker_spans, className="transcript-meta-row"))
 
-        # Change point badges
         cp_badges = []
 
         if is_pre:
-            # Presentation: keep the original single "Change Point" badge
             if int(row.get("is_changepoint", 0)) == 1:
                 cp_badges.append(html.Span("Change Point", className="cp-tag cp-tag-sentence"))
         else:
-            # Q&A: show per-dimension Change Point badges (can be multiple per row)
             dims = ["assertive", "cautious", "optimistic", "specific", "clear", "relevant"]
             for d in dims:
                 cp_col = f"qa_{d}_change_point"
                 if (cp_col in df_sorted.columns) and int(row.get(cp_col, 0) or 0) == 1:
-                    color = QA_DIM_COLORS.get(d, "#111827")
+                    colors = QA_CP_BADGE_COLORS.get(d, {"bg": "#F5F5F5", "border": "#9E9E9E", "text": "#424242"})
                     cp_badges.append(
                         html.Span(
                             f"{d.capitalize()} Change Point",
-                            className="cp-tag cp-tag-sentence",
+                            className="cp-tag cp-tag-qa",
                             style={
-                                "backgroundColor": f"rgba{tuple(int(color[i:i+2], 16) for i in (1, 3, 5)) + (0.15,)}",
-                                "borderColor": f"rgba{tuple(int(color[i:i+2], 16) for i in (1, 3, 5)) + (0.55,)}",
-                                "color": color,
+                                "backgroundColor": colors["bg"],
+                                "borderColor": colors["border"],
+                                "color": colors["text"],
+                                "borderWidth": "2px",
+                                "borderStyle": "solid",
                             },
                         )
                     )
@@ -787,7 +1150,6 @@ def build_transcript_children(df, active_section_id, scroll_state):
         if cp_badges:
             meta_rows.append(html.Div(cp_badges, className="cp-row"))
 
-        # Text block
         if is_pre:
             text = str(row.get("presentation_text", "") or "")
             text_block = html.Div(text, className="transcript-text")
@@ -804,7 +1166,7 @@ def build_transcript_children(df, active_section_id, scroll_state):
                     html.Div(
                         [
                             html.Span("Q", className="qa-label qa-label-q",
-                                      title=(q_name + " " + q_title).strip()),
+                                      title=(q_name + " " + q_title).strip() or "Question"),
                             html.Div(q_text, className="qa-bubble qa-bubble-q"),
                         ],
                         className="qa-line qa-line-q",
@@ -812,7 +1174,7 @@ def build_transcript_children(df, active_section_id, scroll_state):
                     html.Div(
                         [
                             html.Span("A", className="qa-label qa-label-a",
-                                      title=(a_name + " " + a_title).strip()),
+                                      title=(a_name + " " + a_title).strip() or "Answer"),
                             html.Div(a_text, className="qa-bubble qa-bubble-a"),
                         ],
                         className="qa-line qa-line-a",
@@ -849,15 +1211,16 @@ app.layout = dbc.Container(
         dcc.Store(id="store-qa-data"),
         dcc.Store(id="store-panel-data"),
         dcc.Store(id="store-global-data"),
-        dcc.Store(id="store-active-point"),
-        dcc.Store(id="store-active-transcript"),
-        dcc.Store(id="store-scroll-state", data={"above_more": False, "below_more": False}),
+        dcc.Store(id="store-active-point", data={"mode": "pre", "section_id": 0}),
+        dcc.Store(id="store-active-transcript", data=0),
+        dcc.Store(id="store-show-all", data=False),
         dcc.Store(id="store-quarter", data=1),
         dcc.Store(id="store-indicator-mode", data="quote"),
         dcc.Store(id="store-scroll-dummy"),
+        dcc.Store(id="store-comment-scroll-dummy"),
         dcc.Store(id="store-legend-tone", data={}),
         dcc.Store(id="store-legend-indicators", data={}),
-        dcc.Store(id="store-scroll-trigger", data=0),
+        dcc.Store(id="store-tic"),
 
         dbc.Row(
             [
@@ -874,13 +1237,22 @@ app.layout = dbc.Container(
                                                className="transcript-tab"),
                                 ],
                             ),
+
                             html.Div(
-                                className="more-less-row top",
+                                className="show-all-control",
                                 children=[
-                                    html.Button("+ More", id="btn-more-top", n_clicks=0,
-                                                className="more-less-btn"),
-                                    html.Button("- Less", id="btn-less-top", n_clicks=0,
-                                                className="more-less-btn"),
+                                    html.Div(
+                                        [
+                                            dcc.Checklist(
+                                                id="checkbox-show-all",
+                                                options=[{"label": "", "value": "show_all"}],
+                                                value=[],
+                                                className="show-all-checkbox",
+                                            ),
+                                            html.Span("Show All Transcripts", className="show-all-label"),
+                                        ],
+                                        className="show-all-inner",
+                                    ),
                                 ],
                             ),
                             html.Div(
@@ -888,20 +1260,20 @@ app.layout = dbc.Container(
                                 className="transcript-container",
                                 children=[html.Div(id="transcript-inner")],
                             ),
+                            
                             html.Div(
-                                className="more-less-row bottom",
+                                id="scroll-buttons",
+                                className="scroll-buttons",
                                 children=[
-                                    html.Button("+ More", id="btn-more-bottom", n_clicks=0,
-                                                className="more-less-btn"),
-                                    html.Button("- Less", id="btn-less-bottom", n_clicks=0,
-                                                className="more-less-btn"),
+                                    html.Button("↑", id="btn-scroll-top", className="scroll-btn", title="Scroll to Top"),
+                                    html.Button("↓", id="btn-scroll-bottom", className="scroll-btn", title="Scroll to Bottom"),
                                 ],
                             ),
                         ],
                         className="dash-card transcript-card",
                     ),
                     width=3,
-                    style={"padding": "10px", "height": "100%"},
+                    style={"padding": "10px", "height": "100%", "display": "flex", "flexDirection": "column"},
                 ),
                 dbc.Col(
                     [
@@ -909,11 +1281,11 @@ app.layout = dbc.Container(
                             [
                                 html.H5("Cumulative Tone", className="block-title"),
                                 html.Div(id="tone-time-label", className="tone-time-label"),
-                                dcc.Graph(id="graph-tone", config={"displayModeBar": False},
+                                dcc.Graph(id="graph-tone", config={"displayModeBar": False, "doubleClick": False, "showAxisDragHandles": False, "showAxisRangeEntryBoxes": False},
                                           className="tone-graph"),
                             ],
                             className="dash-card chart-card",
-                            style={"height": "calc(50% - 6px)", "marginBottom": "8px"},
+                            style={"flex": "1", "marginBottom": "8px"},
                         ),
                         html.Div(
                             [
@@ -927,15 +1299,15 @@ app.layout = dbc.Container(
                                                     className="indicator-tab"),
                                     ],
                                 ),
-                                dcc.Graph(id="graph-indicators", config={"displayModeBar": False},
+                                dcc.Graph(id="graph-indicators", config={"displayModeBar": False, "doubleClick": False, "showAxisDragHandles": False, "showAxisRangeEntryBoxes": False},
                                           className="indicator-graph"),
                             ],
                             className="dash-card chart-card",
-                            style={"height": "calc(50% - 6px)"},
+                            style={"flex": "1"},
                         ),
                     ],
                     width=6,
-                    style={"padding": "10px", "height": "100%"},
+                    style={"padding": "10px", "height": "100%", "display": "flex", "flexDirection": "column"},
                 ),
                 dbc.Col(
                     [
@@ -950,7 +1322,7 @@ app.layout = dbc.Container(
                                                 "fontSize": "13px", "color": "#888", "fontWeight": "400",
                                             }),
                                             html.Div(str(YEAR_DEFAULT), style={
-                                                "fontSize": "22px", "fontWeight": "550",
+                                                "fontSize": "20px", "fontWeight": "500",
                                                 "marginLeft": "10px", "marginTop": "8px"
                                             }),
                                         ],
@@ -988,33 +1360,58 @@ app.layout = dbc.Container(
                                 dcc.Dropdown(
                                     options=DROPDOWN_OPTIONS,
                                     value=DROPDOWN_OPTIONS[0]["value"] if DROPDOWN_OPTIONS else None,
-                                    clearable=True,
+                                    clearable=False,
                                     searchable=False,
-                                    className="clean-dropdown",
-                                    style={"border": "none", "marginTop": "10px"},
                                     id="dropdown-company",
+                                    className="company-dropdown-fixed",
+                                    optionHeight=35,
+                                    maxHeight=250,
+                                    style={"marginTop": "10px"},
                                 ),
                             ],
-                            className="dash-card dropdown-card",
+                            className="dash-card dropdown-card-fixed",
                             style={"marginBottom": "8px", "padding": "10px 15px", "position": "relative"},
                         ),
                         html.Div(
                             [
-                                html.H5("Comment", className="block-title"),
+                                html.Div(
+                                    [
+                                        html.H5("Comment", className="block-title", style={"marginBottom": "0"}),
+                                        html.Div(
+                                            [
+                                                dbc.Button("Summary", id="btn-comment-summary", n_clicks=0,
+                                                          className="comment-tab active-comment-tab"),
+                                                dbc.Button("Change Point", id="btn-comment-cp", n_clicks=0,
+                                                          className="comment-tab"),
+                                            ],
+                                            className="comment-tab-row",
+                                        ),
+                                    ],
+                                    style={"display": "flex", "justifyContent": "space-between", "alignItems": "center", "marginBottom": "8px"},
+                                ),
                                 dcc.Markdown(
                                     id="comment-content",
                                     className="comment-content",
                                     children="",
-                                    style={"flex": "1", "minHeight": "0"},
+                                ),
+                                
+                                html.Div(
+                                    id="comment-scroll-buttons",
+                                    className="comment-scroll-buttons",
+                                    children=[
+                                        html.Button("↑", id="btn-comment-scroll-top", className="comment-scroll-btn", title="Scroll to Top"),
+                                        html.Button("↓", id="btn-comment-scroll-bottom", className="comment-scroll-btn", title="Scroll to Bottom"),
+                                    ],
                                 ),
                             ],
                             className="dash-card comment-card",
                             style={"flex": "1", "padding": "8px 12px", "display": "flex",
-                                   "flexDirection": "column"},
+                                   "flexDirection": "column", "minHeight": "0"},
                         ),
+                        dcc.Store(id="store-comment-mode", data="summary"),
                     ],
                     width=3,
-                    style={"padding": "8px", "height": "100%", "display": "flex",
+                    style={"padding": "10px", "height": "100%", "display": "flex",
                            "flexDirection": "column"},
                 ),
             ],
@@ -1039,6 +1436,7 @@ app.layout = dbc.Container(
     Input("btn-q2", "n_clicks"),
     Input("btn-q3", "n_clicks"),
     Input("btn-q4", "n_clicks"),
+    prevent_initial_call=False,
 )
 def update_quarter_styles(n1, n2, n3, n4):
     triggered_id = ctx.triggered_id
@@ -1049,6 +1447,7 @@ def update_quarter_styles(n1, n2, n3, n4):
     styles[quarter - 1] = STYLE_ACTIVE
     return styles[0], styles[1], styles[2], styles[3], quarter
 
+
 @app.callback(
     Output("store-indicator-mode", "data"),
     Output("btn-ind-quote", "className"),
@@ -1056,12 +1455,47 @@ def update_quarter_styles(n1, n2, n3, n4):
     Input("btn-ind-quote", "n_clicks"),
     Input("btn-ind-trade", "n_clicks"),
     State("store-indicator-mode", "data"),
+    prevent_initial_call=True,
 )
 def switch_indicator_mode(nq, nt, current_mode):
     mode = "trade" if ctx.triggered_id == "btn-ind-trade" else "quote"
     quote_class = "indicator-tab active" if mode == "quote" else "indicator-tab"
     trade_class = "indicator-tab active" if mode == "trade" else "indicator-tab"
     return mode, quote_class, trade_class
+
+
+@app.callback(
+    Output("store-comment-mode", "data"),
+    Output("btn-comment-summary", "className"),
+    Output("btn-comment-cp", "className"),
+    Input("btn-comment-summary", "n_clicks"),
+    Input("btn-comment-cp", "n_clicks"),
+    prevent_initial_call=True,
+)
+def switch_comment_mode(n_summary, n_cp):
+    mode = "cp" if ctx.triggered_id == "btn-comment-cp" else "summary"
+    summary_class = "comment-tab active-comment-tab" if mode == "summary" else "comment-tab"
+    cp_class = "comment-tab active-comment-tab" if mode == "cp" else "comment-tab"
+    return mode, summary_class, cp_class
+
+
+@app.callback(
+    Output("comment-content", "children"),
+    Input("store-comment-mode", "data"),
+    Input("store-tic", "data"),
+    Input("store-quarter", "data"),
+    Input("store-active-point", "data"),
+    prevent_initial_call=False,
+)
+def update_comment_content(comment_mode, tic, quarter, active_point):
+    if not tic or not quarter:
+        return ""
+    
+    mode = active_point.get("mode", "pre") if active_point else "pre"
+    comment_mode = comment_mode or "summary"
+    
+    return load_comment_md(tic, YEAR_DEFAULT, quarter, comment_mode, mode)
+
 
 @app.callback(
     Output("store-pre-data", "data"),
@@ -1071,7 +1505,7 @@ def switch_indicator_mode(nq, nt, current_mode):
     Output("store-active-point", "data"),
     Output("store-active-transcript", "data"),
     Output("tone-time-label", "children"),
-    Output("comment-content", "children"),
+    Output("store-tic", "data"),
     Input("dropdown-company", "value"),
     Input("store-quarter", "data"),
     Input("graph-tone", "clickData"),
@@ -1085,199 +1519,297 @@ def switch_indicator_mode(nq, nt, current_mode):
     State("store-global-data", "data"),
     State("store-active-point", "data"),
     State("store-active-transcript", "data"),
+    State("store-tic", "data"),
+    prevent_initial_call=False,
 )
 def unified_data_and_active(
     tic, quarter, tone_click, ind_click, transcript_clicks,
     tab_pre, tab_qa,
-    pre_data, qa_data, panel_data, global_data, active_point, active_transcript,
+    pre_data, qa_data, panel_data, global_data, active_point, active_transcript, stored_tic,
 ):
     triggered = ctx.triggered_id
+    
     if triggered == "graph-tone" and tone_click is None:
         raise dash.exceptions.PreventUpdate
     if triggered == "graph-indicators" and ind_click is None:
         raise dash.exceptions.PreventUpdate
 
-    if triggered in ["dropdown-company", "store-quarter"]:
-        if tic is None: raise dash.exceptions.PreventUpdate
+    if triggered in ["dropdown-company", "store-quarter", None]:
+        if tic is None: 
+            raise dash.exceptions.PreventUpdate
+            
         year = YEAR_DEFAULT
         pre_df = load_pre_df(tic, year, quarter)
         qa_df = load_qa_df(tic, year, quarter)
-        panel_df = load_panel_df(tic, year, quarter)
+        
+        default_mode = "pre" if not pre_df.empty else "qa"
+        panel_df = load_panel_df(tic, year, quarter, mode=default_mode)
+        
         global_df = build_global_df(pre_df, qa_df)
+        
         if not pre_df.empty:
             sec_id, mode = choose_default_changepoint(pre_df), "pre"
         else:
             sec_id, mode = choose_default_changepoint(qa_df), "qa"
+            
         active_point = {"mode": mode, "section_id": int(sec_id)}
         active_transcript = int(sec_id)
-        row, label = load_calendar_row(tic, year, quarter), ""
+        
+        row = load_calendar_row(tic, year, quarter)
+        label = ""
         if row is not None:
             start, end = row.get("timestamp_et_start", ""), row.get("timestamp_et_end", "")
             if pd.notna(start) and pd.notna(end):
                 try:
-                    label = f"[{pd.to_datetime(start).strftime('%Y-%m-%d %H:%M')}, {pd.to_datetime(end).strftime('%Y-%m-%d %H:%M')}] ET"
-                except: label = f"[{start}, {end}] ET"
-        return (pre_df.to_dict("records"), qa_df.to_dict("records"), panel_df.to_dict("records"), 
-                global_df.to_dict("records"), active_point, int(active_point["section_id"]), label, load_comment_md(tic, year, quarter))
+                    start_dt = pd.to_datetime(start)
+                    end_dt = pd.to_datetime(end)
 
-    pre_df, qa_df, global_df = _df_from_store(pre_data), _df_from_store(qa_data), _df_from_store(global_data)
+                    label = html.Div(
+                        [
+                            html.Span("📅 ", style={"marginRight": "4px"}),
+                            html.Span(f"{start_dt.strftime('%Y-%m-%d %H:%M')}", style={"fontWeight": "600"}),
+                            html.Span(" to ", style={"margin": "0 4px", "color": "#6b7280"}),
+                            html.Span(f"{end_dt.strftime('%H:%M')}", style={"fontWeight": "600"}),
+                            html.Span(" ET", style={"marginLeft": "4px", "color": "#6b7280", "fontSize": "10px"}),
+                        ],
+                        style={
+                            "display": "flex",
+                            "alignItems": "center",
+                            "fontSize": "11px",
+                        }
+                    )
+                except: 
+                    label = f"[{start}, {end}] ET"
+        
+        return (
+            pre_df.to_dict("records"), 
+            qa_df.to_dict("records"), 
+            panel_df.to_dict("records"), 
+            global_df.to_dict("records"), 
+            active_point, 
+            active_transcript, 
+            label,
+            tic,
+        )
+
+    pre_df = _df_from_store(pre_data)
+    qa_df = _df_from_store(qa_data)
+    global_df = _df_from_store(global_data)
+    
     active_point = active_point or {"mode": "pre", "section_id": 0}
     active_transcript = active_transcript or int(active_point["section_id"])
-    mode, section_id = active_point.get("mode", "pre"), int(active_point.get("section_id", 0))
+    mode = active_point.get("mode", "pre")
+    section_id = int(active_point.get("section_id", 0))
+    
+    reload_panel = False
 
     if triggered == "graph-tone" and tone_click:
         section_id = find_nearest_section_in_mode(global_df, tone_click["points"][0]["x"], mode)
         active_transcript = section_id
     elif triggered == "graph-indicators" and ind_click:
-        section_id = find_nearest_section_in_mode(global_df, ind_click["points"][0]["x"], mode)
+        clicked_time = ind_click["points"][0]["x"]
+        section_id = find_nearest_section_in_mode(global_df, clicked_time, mode)
         active_transcript = section_id
     elif isinstance(triggered, dict) and triggered.get("type") == "transcript-item":
+        trig = (ctx.triggered[0] if ctx.triggered else {})
+        trig_val = trig.get("value")
+        if trig_val is None or trig_val == 0:
+            raise dash.exceptions.PreventUpdate
         section_id = active_transcript = int(triggered["index"])
     elif triggered == "btn-tab-pre":
-        mode, section_id = "pre", (choose_default_changepoint(pre_df) if not pre_df.empty else 0)
+        mode = "pre"
+        section_id = choose_default_changepoint(pre_df) if not pre_df.empty else 0
         active_transcript = section_id
+        reload_panel = True
     elif triggered == "btn-tab-qa":
-        mode, section_id = "qa", (choose_default_changepoint(qa_df) if not qa_df.empty else 0)
+        mode = "qa"
+        section_id = choose_default_changepoint(qa_df) if not qa_df.empty else 0
         active_transcript = section_id
+        reload_panel = True
+    
+    if reload_panel and stored_tic:
+        panel_df = load_panel_df(stored_tic, YEAR_DEFAULT, quarter, mode=mode)
+        panel_data = panel_df.to_dict("records")
 
-    return (pre_data, qa_data, panel_data, global_data, {"mode": mode, "section_id": int(section_id)}, active_transcript, dash.no_update, dash.no_update)
+    return (
+        pre_data, qa_data, panel_data, global_data, 
+        {"mode": mode, "section_id": int(section_id)}, 
+        active_transcript, 
+        dash.no_update,
+        dash.no_update,
+    )
+
 
 @app.callback(
-    Output("store-scroll-state", "data"),
-    Output("store-scroll-trigger", "data"),
-    Input("btn-more-top", "n_clicks"), 
-    Input("btn-less-top", "n_clicks"),
-    Input("btn-more-bottom", "n_clicks"), 
-    Input("btn-less-bottom", "n_clicks"),
-    State("store-scroll-state", "data"),
-    State("store-scroll-trigger", "data"),
+    Output("store-show-all", "data"),
+    Input("checkbox-show-all", "value"),
     prevent_initial_call=True,
 )
-def toggle_scroll_state(nmt, nlt, nmb, nlb, scroll_state, trigger_count):
-    scroll_state = scroll_state or {"above_more": False, "below_more": False}
-    trigger_count = trigger_count or 0
-    trig = ctx.triggered_id
-    
-    if trig == "btn-more-top": 
-        scroll_state["above_more"] = True
-    elif trig == "btn-less-top": 
-        scroll_state["above_more"] = False
-    elif trig == "btn-more-bottom": 
-        scroll_state["below_more"] = True
-    elif trig == "btn-less-bottom": 
-        scroll_state["below_more"] = False
-    
-    return scroll_state, trigger_count + 1
+def update_show_all(checkbox_value):
+    return "show_all" in (checkbox_value or [])
+
 
 @app.callback(
-    Output("btn-more-top", "className"), Output("btn-less-top", "className"),
-    Output("btn-more-bottom", "className"), Output("btn-less-bottom", "className"),
-    Input("store-scroll-state", "data"),
-)
-def update_more_less_button_classes(scroll_state):
-    base = "more-less-btn"
-    scroll_state = scroll_state or {"above_more": False, "below_more": False}
-    a, b = scroll_state.get("above_more"), scroll_state.get("below_more")
-    return base+(" more-less-btn-active" if a else ""), base+("" if a else " more-less-btn-active"), \
-           base+(" more-less-btn-active" if b else ""), base+("" if b else " more-less-btn-active")
-
-@app.callback(
-    Output("store-legend-tone", "data"), Input("graph-tone", "restyleData"),
-    State("graph-tone", "figure"), State("store-legend-tone", "data"), prevent_initial_call=True
+    Output("store-legend-tone", "data"), 
+    Input("graph-tone", "restyleData"),
+    State("graph-tone", "figure"), 
+    State("store-legend-tone", "data"), 
+    prevent_initial_call=True
 )
 def persist_legend_state_tone(restyle_data, fig, state):
-    if not restyle_data or not fig: raise dash.exceptions.PreventUpdate
-    state, (changes, trace_idxs) = state or {}, restyle_data
-    if isinstance(trace_idxs, int): trace_idxs = [trace_idxs]
-    vis_list = changes.get("visible") if isinstance(changes.get("visible"), list) else [changes.get("visible")]*len(trace_idxs)
+    if not restyle_data or not fig: 
+        raise dash.exceptions.PreventUpdate
+        
+    state = state or {}
+    changes, trace_idxs = restyle_data
+    
+    if isinstance(trace_idxs, int): 
+        trace_idxs = [trace_idxs]
+    
+    vis_list = changes.get("visible")
+    if not isinstance(vis_list, list):
+        vis_list = [vis_list] * len(trace_idxs)
+    
     for i, t_idx in enumerate(trace_idxs):
-        name = fig["data"][t_idx].get("name")
-        if name: state[name] = False if vis_list[i] == "legendonly" else True
+        if t_idx < len(fig["data"]):
+            name = fig["data"][t_idx].get("name")
+            if name: 
+                state[name] = False if vis_list[i] == "legendonly" else True
+                
     return state
 
+
 @app.callback(
-    Output("store-legend-indicators", "data"), Input("graph-indicators", "restyleData"),
-    State("graph-indicators", "figure"), State("store-legend-indicators", "data"), prevent_initial_call=True
+    Output("store-legend-indicators", "data"), 
+    Input("graph-indicators", "restyleData"),
+    State("graph-indicators", "figure"), 
+    State("store-legend-indicators", "data"), 
+    prevent_initial_call=True
 )
 def persist_legend_state_indicators(restyle_data, fig, state):
-    if not restyle_data or not fig: raise dash.exceptions.PreventUpdate
-    state, (changes, trace_idxs) = state or {}, restyle_data
-    if isinstance(trace_idxs, int): trace_idxs = [trace_idxs]
-    vis_list = changes.get("visible") if isinstance(changes.get("visible"), list) else [changes.get("visible")]*len(trace_idxs)
+    if not restyle_data or not fig: 
+        raise dash.exceptions.PreventUpdate
+        
+    state = state or {}
+    changes, trace_idxs = restyle_data
+    
+    if isinstance(trace_idxs, int): 
+        trace_idxs = [trace_idxs]
+    
+    vis_list = changes.get("visible")
+    if not isinstance(vis_list, list):
+        vis_list = [vis_list] * len(trace_idxs)
+    
     for i, t_idx in enumerate(trace_idxs):
-        name = fig["data"][t_idx].get("name")
-        if name: state[name] = False if vis_list[i] == "legendonly" else True
+        if t_idx < len(fig["data"]):
+            name = fig["data"][t_idx].get("name")
+            if name: 
+                state[name] = False if vis_list[i] == "legendonly" else True
+                
     return state
+
 
 @app.callback(
     Output("graph-tone", "figure"), 
     Output("graph-indicators", "figure"),
-    Input("store-active-point", "data"), 
-    Input("store-pre-data", "data"), 
-    Input("store-qa-data", "data"), 
-    Input("store-panel-data", "data"),
+    Input("store-active-point", "data"),
     Input("store-indicator-mode", "data"),
     Input("store-legend-tone", "data"), 
     Input("store-legend-indicators", "data"),
+    State("store-pre-data", "data"), 
+    State("store-qa-data", "data"), 
+    State("store-panel-data", "data"),
+    State("store-tic", "data"),
+    State("store-quarter", "data"),
+    prevent_initial_call=False,
 )
-def update_graphs(active_point, pre_data, qa_data, panel_data, indicator_mode, legend_tone, legend_indicators):
-    pre_df, qa_df, panel_df = _df_from_store(pre_data), _df_from_store(qa_data), _df_from_store(panel_data)
-    mode, section_id = (active_point.get("mode", "pre"), int(active_point.get("section_id", 0))) if active_point else ("pre", 0)
+def update_graphs(active_point, indicator_mode, legend_tone, legend_indicators, pre_data, qa_data, panel_data, tic, quarter):
+    pre_df = _df_from_store(pre_data)
+    qa_df = _df_from_store(qa_data)
+    panel_df = _df_from_store(panel_data)
+    
+    if not active_point:
+        active_point = {"mode": "pre", "section_id": 0}
+        
+    mode = active_point.get("mode", "pre")
+    section_id = int(active_point.get("section_id", 0))
+    
     current_df = pre_df if mode == "pre" else qa_df
-    seg_range, active_ts = None, None
-    if not current_df.empty:
-        s, e = float(current_df["timestamp_sec"].min()), float(current_df["timestamp_sec"].max())
-        if e > s: seg_range = (s, e)
+    
+    seg_range = None
+    active_ts = None
+    
+    if not current_df.empty and "timestamp_sec" in current_df.columns:
+        s = float(current_df["timestamp_sec"].min())
+        e = float(current_df["timestamp_sec"].max())
+        if e > s: 
+            seg_range = (s, e)
+            
         r = current_df[current_df["section_id"] == section_id]
-        if not r.empty: active_ts = float(r.iloc[0]["timestamp_sec"])
-    return build_tone_figure(pre_df, qa_df, mode, section_id, seg_range, legend_tone), \
-           build_indicator_figure(panel_df, active_ts, indicator_mode, seg_range, legend_indicators)
+        if not r.empty and "timestamp_sec" in r.columns: 
+            active_ts = float(r.iloc[0]["timestamp_sec"])
+    
+    # Calculate market times
+    market_times = None
+    if tic and quarter:
+        cal_row = load_calendar_row(tic, YEAR_DEFAULT, quarter)
+        if cal_row is not None:
+            market_times = calculate_market_times(cal_row)
+    
+    tone_fig = build_tone_figure(pre_df, qa_df, mode, section_id, seg_range, legend_tone, market_times)
+    ind_fig = build_indicator_figure(panel_df, active_ts, indicator_mode, seg_range, legend_indicators, market_times)
+    
+    return tone_fig, ind_fig
+
 
 @app.callback(
     Output("transcript-inner", "children"), 
     Output("btn-tab-pre", "className"), 
     Output("btn-tab-qa", "className"),
     Input("store-active-transcript", "data"),
-    Input("store-scroll-trigger", "data"),
+    Input("store-show-all", "data"),
     State("store-active-point", "data"),
     State("store-pre-data", "data"), 
     State("store-qa-data", "data"),
-    State("store-scroll-state", "data"),
     prevent_initial_call=False,
 )
-def update_transcript(active_transcript, scroll_trigger, active_point, pre_data, qa_data, scroll_state):
-    pre_df, qa_df = _df_from_store(pre_data), _df_from_store(qa_data)
+def update_transcript(active_transcript, show_all, active_point, pre_data, qa_data):
+    pre_df = _df_from_store(pre_data)
+    qa_df = _df_from_store(qa_data)
+    
     mode = active_point.get("mode", "pre") if active_point else "pre"
     section_id = int(active_point.get("section_id", 0)) if active_point else 0
     current_df = pre_df if mode == "pre" else qa_df
-    
-    if active_transcript is not None:
-        display_section_id = int(active_transcript)
-    else:
-        display_section_id = section_id
-    
-    if not current_df.empty:
-        if display_section_id not in current_df["section_id"].values:
-            if section_id in current_df["section_id"].values:
-                display_section_id = section_id
-            else:
-                display_section_id = int(current_df.iloc[0]["section_id"])
-    
-    return build_transcript_children(current_df, display_section_id, scroll_state or {}), \
-           "transcript-tab active" if mode == "pre" else "transcript-tab", \
-           "transcript-tab active" if mode == "qa" else "transcript-tab"
 
+    display_section_id = section_id
+    
+    children = build_transcript_children(current_df, display_section_id, show_all)
+    
+    pre_class = "transcript-tab active" if mode == "pre" else "transcript-tab"
+    qa_class = "transcript-tab active" if mode == "qa" else "transcript-tab"
+    
+    return children, pre_class, qa_class
+
+
+# Auto-scroll and show/hide buttons
 app.clientside_callback(
-    """function(at, trigger, ss, ch) {
-        if (!ch) return null;
+    """function(at, show_all, ch) {
+        if (!ch) return [null, {'display': 'none'}];
 
-        var targetId = at !== null && at !== undefined ? at : 0;
+        var container = document.getElementById('transcript-container');
+        if (!container) return [null, {'display': 'none'}];
         
+        var showButtons = false;
+        if (show_all && container.scrollHeight > container.clientHeight) {
+            var scrollTop = container.scrollTop;
+            var scrollBottom = container.scrollHeight - container.clientHeight - scrollTop;
+            if (scrollTop > 100 || scrollBottom > 100) {
+                showButtons = true;
+            }
+        }
+
         requestAnimationFrame(function() {
             requestAnimationFrame(function() {
-                var container = document.getElementById('transcript-container');
-                if (!container) return;
-                
                 var activeEls = container.getElementsByClassName('transcript-active');
                 if (!activeEls.length) return;
                 
@@ -1285,7 +1817,12 @@ app.clientside_callback(
                 var contRect = container.getBoundingClientRect();
                 var actRect = activeEl.getBoundingClientRect();
 
-                var scrollOffset = (actRect.top + actRect.bottom)/2 - (contRect.top + contRect.bottom)/2;
+                var scrollOffset;
+                if (actRect.height > contRect.height * 0.5) {
+                    scrollOffset = actRect.top - contRect.top - 20;
+                } else {
+                    scrollOffset = (actRect.top + actRect.bottom)/2 - (contRect.top + contRect.bottom)/2;
+                }
 
                 if (Math.abs(scrollOffset) > 5) {
                     container.scrollBy({
@@ -1296,14 +1833,96 @@ app.clientside_callback(
             });
         });
         
-        return null;
+        return [null, {'display': showButtons ? 'flex' : 'none'}];
     }""",
-    Output("store-scroll-dummy", "data"), 
+    Output("store-scroll-dummy", "data"),
+    Output("scroll-buttons", "style"),
     Input("store-active-transcript", "data"),
-    Input("store-scroll-trigger", "data"),
-    Input("store-scroll-state", "data"), 
+    Input("store-show-all", "data"),
     Input("transcript-inner", "children"),
 )
 
+
+
+
+# Scroll buttons
+app.clientside_callback(
+    """function(n_top, n_bottom) {
+        var container = document.getElementById('transcript-container');
+        if (!container) return null;
+        
+        var triggeredId = dash_clientside.callback_context.triggered[0].prop_id;
+        
+        if (triggeredId.includes('btn-scroll-top')) {
+            container.scrollTo({top: 0, behavior: 'smooth'});
+        } else if (triggeredId.includes('btn-scroll-bottom')) {
+            container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
+        }
+        
+        return null;
+    }""",
+    Output("store-scroll-dummy", "data", allow_duplicate=True),
+    Input("btn-scroll-top", "n_clicks"),
+    Input("btn-scroll-bottom", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+# Scroll to top when switching comment mode
+app.clientside_callback(
+    """function(comment_mode) {
+        var commentContent = document.querySelector('.comment-content');
+        if (commentContent) {
+            commentContent.scrollTop = 0;
+        }
+        return null;
+    }""",
+    Output("store-comment-scroll-dummy", "data"),
+    Input("store-comment-mode", "data"),
+    prevent_initial_call=True,
+)
+
+# Comment scroll buttons visibility
+app.clientside_callback(
+    """function(comment_content) {
+        var container = document.querySelector('.comment-content');
+        if (!container) return {'display': 'none'};
+        
+        var showButtons = false;
+        if (container.scrollHeight > container.clientHeight) {
+            var scrollTop = container.scrollTop;
+            var scrollBottom = container.scrollHeight - container.clientHeight - scrollTop;
+            if (scrollTop > 100 || scrollBottom > 100) {
+                showButtons = true;
+            }
+        }
+        
+        return {'display': showButtons ? 'flex' : 'none'};
+    }""",
+    Output("comment-scroll-buttons", "style"),
+    Input("comment-content", "children"),
+)
+
+# Comment scroll buttons click handler
+app.clientside_callback(
+    """function(n_top, n_bottom) {
+        var container = document.querySelector('.comment-content');
+        if (!container) return null;
+        
+        var triggeredId = dash_clientside.callback_context.triggered[0].prop_id;
+        
+        if (triggeredId.includes('btn-comment-scroll-top')) {
+            container.scrollTo({top: 0, behavior: 'smooth'});
+        } else if (triggeredId.includes('btn-comment-scroll-bottom')) {
+            container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
+        }
+        
+        return null;
+    }""",
+    Output("store-comment-scroll-dummy", "data", allow_duplicate=True),
+    Input("btn-comment-scroll-top", "n_clicks"),
+    Input("btn-comment-scroll-bottom", "n_clicks"),
+    prevent_initial_call=True,
+)
+
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)
