@@ -1272,6 +1272,7 @@ app.layout = dbc.Container(
                         ],
                         className="dash-card transcript-card",
                     ),
+                    className="col-transcript",
                     width=3,
                     style={"padding": "10px", "height": "100%", "display": "flex", "flexDirection": "column"},
                 ),
@@ -1306,13 +1307,16 @@ app.layout = dbc.Container(
                             style={"flex": "1"},
                         ),
                     ],
+                    className="col-charts",
                     width=6,
                     style={"padding": "10px", "height": "100%", "display": "flex", "flexDirection": "column"},
                 ),
                 dbc.Col(
                     [
-                        html.Div("TRACE", className="top-header"),
-                        dbc.Row(
+                        html.Div("TRACE", className="top-header trace-header"),
+                        html.Div(
+                            [
+                                dbc.Row(
                             [
                                 dbc.Col(
                                     html.Div(
@@ -1372,6 +1376,9 @@ app.layout = dbc.Container(
                             className="dash-card dropdown-card-fixed",
                             style={"marginBottom": "8px", "padding": "10px 15px", "position": "relative"},
                         ),
+                        ],
+                        className="top-controls",
+                        ),
                         html.Div(
                             [
                                 html.Div(
@@ -1404,17 +1411,19 @@ app.layout = dbc.Container(
                                     ],
                                 ),
                             ],
-                            className="dash-card comment-card",
+                            className="dash-card comment-card comment-wrap",
                             style={"flex": "1", "padding": "8px 12px", "display": "flex",
                                    "flexDirection": "column", "minHeight": "0"},
                         ),
                         dcc.Store(id="store-comment-mode", data="summary"),
                     ],
+                    className="col-controls",
                     width=3,
                     style={"padding": "10px", "height": "100%", "display": "flex",
                            "flexDirection": "column"},
                 ),
             ],
+            className="main-row",
             style={"height": "100%"},
         ),
     ],
@@ -1925,4 +1934,4 @@ app.clientside_callback(
 )
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)

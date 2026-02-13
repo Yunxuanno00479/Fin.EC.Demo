@@ -152,7 +152,7 @@ html, body {
 }
 
 .speaker-name {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     color: #131d54;
 }
@@ -166,7 +166,7 @@ html, body {
 .speaker-title::after  { content: ")"; }
 
 .transcript-text {
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1.45;
     white-space: pre-wrap;
 }
@@ -175,7 +175,7 @@ html, body {
     padding: 20px;
     text-align: center;
     color: #6b7280;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 /* =========================================================
@@ -222,7 +222,7 @@ html, body {
     flex-grow: 1;
     padding: 8px 12px;
     border-radius: 12px;
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1.45;
     white-space: pre-wrap;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
@@ -373,8 +373,8 @@ html, body {
     border-radius: 50%;
     background-color: rgba(255, 255, 255, 0.95);
     color: #9ca3af;
-    border: 1.5px solid #d1d5db;
-    font-size: 14px;
+    border: 1px solid #d1d5db;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
@@ -389,7 +389,7 @@ html, body {
     background-color: #f3f4f6;
     color: #6b7280;
     border-color: #9ca3af;
-    transform: scale(1.08);
+    transform: scale(1.05);
     box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
 }
 
@@ -417,8 +417,8 @@ html, body {
     border-radius: 50%;
     background-color: rgba(255, 255, 255, 0.95);
     color: #9ca3af;
-    border: 1.5px solid #d1d5db;
-    font-size: 14px;
+    border: 1px solid #d1d5db;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
@@ -433,7 +433,7 @@ html, body {
     background-color: #f3f4f6;
     color: #6b7280;
     border-color: #9ca3af;
-    transform: scale(1.08);
+    transform: scale(1.05);
     box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
 }
 
@@ -768,7 +768,7 @@ html, body {
 }
 
 .comment-content h3 {
-    font-size: 14px;
+    font-size: 12px;
     color: #4c5982;
     font-weight: 600;
     margin-top: 14px;
@@ -1030,4 +1030,123 @@ html, body {
     background-color: #374151 !important;
     color: #ffffff !important;
     font-weight: 600 !important;
+}
+
+/* =========================================================
+   RWD order:
+   [TRACE + Year + Quarter + Company]
+   [Transcript]
+   [Charts]
+   [LLM Comment]
+   ========================================================= */
+@media (max-width: 991.98px) {
+
+  /* Re-enable page scrolling on single-column mobile */
+  html, body{
+    height:auto !important;
+    min-height:100% !important;
+    overflow:auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .container-fluid{
+    height:auto !important;
+    overflow:visible !important;
+  }
+  .main-row{
+    height:auto !important;
+  }
+
+/* Remove Bootstrap row gutters on mobile */
+.main-row{
+  --bs-gutter-x: 0 !important;
+  --bs-gutter-y: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Remove inline padding on chart/transcript columns so all blocks share identical outer width */
+.col-transcript,
+.col-charts{
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+  /* Mobile: use container padding so all blocks share identical outer width */
+  .container-fluid{
+    padding-left:10px !important;
+    padding-right:10px !important;
+  }
+
+  .trace-header,
+  .top-controls,
+  .col-transcript,
+  .col-charts,
+  .comment-wrap{
+    width:100% !important;
+    max-width:100% !important;
+    box-sizing:border-box !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
+  }
+
+  /* Stack all columns vertically and allow ordering */
+  .main-row{
+    display:flex !important;
+    flex-direction:column !important;
+    flex-wrap:nowrap !important;
+    align-items:stretch !important;
+  }
+
+  /* Let controls column expose its children as flex items (so we can reorder TRACE/controls/comment) */
+  .col-controls{
+    display:contents !important;
+  }
+
+  /* Force full width & same horizontal size for every block */
+  .trace-header,
+  .top-controls,
+  .col-transcript,
+  .col-charts,
+  .comment-wrap{
+    width:100% !important;
+    max-width:100% !important;
+    align-self:stretch !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
+  }
+
+  /* The actual order */
+  .trace-header{ order:0 !important; }
+  .top-controls{ order:1 !important; }
+  .col-transcript{ order:2 !important; }
+  .col-charts{ order:3 !important; }
+  .comment-wrap{ order:4 !important; }
+
+  /* Charts: prevent flex collapse */
+  .chart-card{
+    flex:none !important;
+    height:auto !important;
+    min-height:360px !important;
+  }
+  /* Give each graph a stable height on mobile */
+  #graph-tone, #graph-indicators{
+    height:320px !important;
+  }
+  #graph-tone .js-plotly-plot, #graph-indicators .js-plotly-plot{
+    height:100% !important;
+  }
+
+  /* Keep internal scrollbars for Transcript & Comment on mobile */
+  .transcript-container{
+    overflow-y:auto !important;
+    max-height:60vh !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .comment-content{
+    overflow-y:auto !important;
+    max-height:60vh !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
