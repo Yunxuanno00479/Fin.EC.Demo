@@ -1202,7 +1202,7 @@ def build_transcript_children(df, active_section_id, show_all):
 # 4. App Layout
 # ============================================================
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP],  title="TRACE")
 server = app.server
 
 app.layout = dbc.Container(
@@ -1311,7 +1311,7 @@ app.layout = dbc.Container(
                 ),
                 dbc.Col(
                     [
-                        html.Div("EARNINGS CALL DASHBOARD", className="top-header"),
+                        html.Div("TRACE", className="top-header"),
                         dbc.Row(
                             [
                                 dbc.Col(
