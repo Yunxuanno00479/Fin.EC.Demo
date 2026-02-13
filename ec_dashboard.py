@@ -517,7 +517,7 @@ def build_tone_figure(pre_df, qa_df, active_mode, active_section_id, segment_ran
                     line=dict(shape="linear", width=1, color="#bdbdbd"),
                     yaxis="y",
                     showlegend=True,
-                    hovertemplate="<b>Time:</b> %{x:.0f}s<br><b>Tone Expected Value:</b> %{y:.3f}<extra></extra>",
+                    hovertemplate="<b>Time:</b> %{x:.3f}s<br><b>Tone Expected Value:</b> %{y:.3f}<extra></extra>",
                 )
             )
 
