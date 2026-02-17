@@ -1313,7 +1313,18 @@ app.layout = dbc.Container(
                 ),
                 dbc.Col(
                     [
-                        html.Div("TRACE", className="top-header trace-header"),
+                        html.Div(
+                            [
+                                html.Span("TRACE", className="trace-title"),
+                                html.A(
+                                    "▶ Demo Video",
+                                    href="https://drive.google.com/file/d/1Mt8SQMCQ7__ejWuYqK-6QapcflWj1VSr/view?usp=sharing",
+                                    target="_blank",
+                                    className="trace-tutorial-link"
+                                ),
+                            ],
+                            className="top-header trace-header trace-header-flex",
+                        ),
                         html.Div(
                             [
                                 dbc.Row(
@@ -1934,4 +1945,4 @@ app.clientside_callback(
 )
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run_server(debug=True)

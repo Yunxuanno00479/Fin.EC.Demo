@@ -1150,3 +1150,102 @@ html, body {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+
+/* =========================================================
+   TRACE Header Tutorial Link
+   ========================================================= */
+
+.trace-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.trace-title {
+    letter-spacing: 0.08em;
+}
+
+/* Demo Video link with subtle glow animation */
+.trace-tutorial-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.trace-tutorial-link:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   Demo Video link breathing glow animation
+   ========================================================= */
+
+@keyframes traceGlowBreath {
+    0% {
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateY(0px);
+    }
+    50% {
+        box-shadow: 0 0 14px rgba(255, 255, 255, 0.42);
+        background: rgba(255, 255, 255, 0.14);
+        transform: translateY(-1px);
+    }
+    100% {
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateY(0px);
+    }
+}
+
+/* Subtle breathing glow on hover (recommended) */
+.trace-tutorial-link:hover {
+    animation: traceGlowBreath 1.6s ease-in-out infinite;
+}
+.trace-tutorial-link {
+    animation: traceGlowBreath 3s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   Demo Video link BRIGHT neon breathing glow
+   ========================================================= */
+
+@keyframes traceGlowBreathBright {
+    0% {
+        box-shadow: 0 0 8px rgba(0, 255, 255, 0.45),
+                    0 0 16px rgba(0, 200, 255, 0.35);
+        background: rgba(0, 255, 255, 0.08);
+        transform: translateY(0px);
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(0, 255, 255, 0.85),
+                    0 0 32px rgba(0, 150, 255, 0.65);
+        background: rgba(0, 255, 255, 0.18);
+        transform: translateY(-1px);
+    }
+    100% {
+        box-shadow: 0 0 8px rgba(0, 255, 255, 0.45),
+                    0 0 16px rgba(0, 200, 255, 0.35);
+        background: rgba(0, 255, 255, 0.08);
+        transform: translateY(0px);
+    }
+}
+
+/* Bright breathing glow on hover */
+.trace-tutorial-link:hover {
+    animation: traceGlowBreathBright 1.4s ease-in-out infinite;
+    color: #ffffff;
+}
+.trace-tutorial-link {
+    animation: traceGlowBreathBright 3s ease-in-out infinite;
+}
