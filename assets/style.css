@@ -1064,7 +1064,6 @@ html, body {
   margin-right: 0 !important;
 }
 
-/* Remove inline padding on chart/transcript columns so all blocks share identical outer width */
 .col-transcript,
 .col-charts{
   padding-left: 0 !important;
@@ -1152,9 +1151,7 @@ html, body {
 }
 
 
-/* =========================================================
-   TRACE Header Tutorial Link
-   ========================================================= */
+/* TRACE Header Tutorial Link */
 
 .trace-header-flex {
     display: flex;
@@ -1185,9 +1182,7 @@ html, body {
 }
 
 
-/* =========================================================
-   Demo Video link breathing glow animation
-   ========================================================= */
+/* Demo Video link breathing glow animation */
 
 @keyframes traceGlowBreath {
     0% {
@@ -1216,9 +1211,7 @@ html, body {
 }
 
 
-/* =========================================================
-   Demo Video link BRIGHT neon breathing glow
-   ========================================================= */
+/* Demo Video link BRIGHT neon breathing glow */
 
 @keyframes traceGlowBreathBright {
     0% {
